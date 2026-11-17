@@ -21,9 +21,6 @@ jobs:
   package:
     name: luci-theme-halo (${{ matrix.release }} → ${{ matrix.ext }})
     runs-on: ubuntu-24.04
-    env:
-      # 必须放在工作区之外：仓库根就是包目录，SDK 若落在里面会被 rsync 复制进自己
-      SDK_DIR: ${{ runner.temp }}/sdk
     strategy:
       fail-fast: false
       matrix:
@@ -40,41 +37,47 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential zstd rsync gawk unzip file
 
+      # SDK 必须解压到工作区之外：仓库根就是包目录，SDK 落在里面会被 rsync 复制进自己。
+      # 路径在本步内用 RUNNER_TEMP 拼，不放进 job env（那里不允许引用 runner context）。
       - name: 下载 OpenWrt SDK
         run: |
           set -euo pipefail
+          sdk="$RUNNER_TEMP/sdk"
           base="https://downloads.openwrt.org/releases/${{ matrix.release }}/targets/x86/64"
-          # 文件名里带 gcc 版本，写死会随小版本变化，所以现场解析
+          # 文件名里带 gcc 版本（24.10 是 13.3.0，25.12 是 14.3.0），写死会随小版本失效，现场解析
           file=$(curl -fsSL "$base/" \
                  | grep -oE 'openwrt-sdk-[0-9A-Za-z._-]*Linux-x86_64\.tar\.zst' \
                  | head -n1)
           echo "SDK = $file"
           test -n "$file"
           curl -fsSL -o /tmp/sdk.tar.zst "$base/$file"
-          mkdir -p "$SDK_DIR"
-          tar --zstd -xf /tmp/sdk.tar.zst -C "$SDK_DIR" --strip-components=1
+          mkdir -p "$sdk"
+          tar --zstd -xf /tmp/sdk.tar.zst -C "$sdk" --strip-components=1
           rm -f /tmp/sdk.tar.zst
+          ls "$sdk" | head
 
       - name: 放入包源码
         run: |
           set -euo pipefail
-          dest="$SDK_DIR/package/luci-theme-halo"
+          dest="$RUNNER_TEMP/sdk/package/luci-theme-halo"
           mkdir -p "$dest"
-          # 仓库根就是包目录；目录名决定 PKG_NAME，必须叫 luci-theme-halo
-          rsync -a --exclude '.git' --exclude '.github' --exclude 'preview' --exclude 'sdk' ./ "$dest/"
+          # 仓库根就是包目录；目录名决定 LUCI_NAME / PKG_NAME，必须叫 luci-theme-halo
+          rsync -a --exclude '.git' --exclude '.github' --exclude 'preview' ./ "$dest/"
           # Windows 上提交会丢可执行位，这里兜一道：uci-defaults 不执行 = 主题不注册
           chmod +x "$dest"/root/etc/uci-defaults/* || true
           find "$dest" -type f -name '*.ut' -exec chmod 0644 {} +
+          echo "--- package tree ---"
+          find "$dest" -type f | sort
 
       - name: 更新 feeds
-        working-directory: ${{ env.SDK_DIR }}
+        working-directory: ${{ runner.temp }}/sdk
         run: |
           set -euo pipefail
           ./scripts/feeds update luci
           ./scripts/feeds install luci-base
 
       - name: 编译
-        working-directory: ${{ env.SDK_DIR }}
+        working-directory: ${{ runner.temp }}/sdk
         run: |
           set -euo pipefail
           make defconfig
@@ -83,8 +86,9 @@ jobs:
       - name: 收集产物
         run: |
           set -euo pipefail
+          sdk="$RUNNER_TEMP/sdk"
           mkdir -p out
-          find "$SDK_DIR/bin/packages" -type f -name 'luci-theme-halo*' \
+          find "$sdk/bin/packages" -type f -name 'luci-theme-halo*' \
             \( -name '*.ipk' -o -name '*.apk' \) -exec cp -v {} out/ \;
           echo "---- out ----"
           ls -lh out
