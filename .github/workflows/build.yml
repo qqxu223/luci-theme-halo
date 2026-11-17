@@ -113,4 +113,26 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: out/*
+          # body 会被 prepend 到自动生成的 changelog 前面（GitHub API 的行为）
           generate_release_notes: true
+          body: |
+            ## 安装
+
+            OpenWrt 25.12 及以上（apk）：
+            ```sh
+            apk add --allow-untrusted ./luci-theme-halo-1.0.0-r1.apk
+            ```
+
+            OpenWrt 24.10（opkg）：
+            ```sh
+            opkg install ./luci-theme-halo_1.0.0-r1_all.ipk
+            ```
+
+            装完到 **系统 → 语言和界面 → 主题** 选 `Halo`。包只注册、不强制切换，卸载也不影响当前界面。
+
+            ## 说明
+
+            - 概览页是一块真仪表盘：网络信息、拓扑图、5 分钟双向吞吐曲线、系统状态，外加客户端 / 接口 / 流量大户
+            - 采集层有单飞锁、逐调用超时、在途上限、失败退避、双时钟；标签页隐藏时零请求
+            - 窄屏 < 620px 拓扑自动切成竖向链路，字号 1:1 不做缩放
+            - 包为 `_all` 架构，依赖只有 `luci-base`，静态资源全部自带，不与其它主题共享文件
