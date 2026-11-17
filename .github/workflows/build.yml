@@ -73,8 +73,11 @@ jobs:
         working-directory: ${{ runner.temp }}/sdk
         run: |
           set -euo pipefail
-          ./scripts/feeds update luci
-          ./scripts/feeds install luci-base
+          # 必须全量。ucode / rpcd / cgi-io / libubox / libusb / liblua 这些
+          # luci-base 的依赖全在 packages feed 里；只拉 luci 的话它们全是
+          # "does not exist"，依赖树解析不出来，最后卡在 lucihttp 的 lua.h。
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
 
       - name: 编译
         working-directory: ${{ runner.temp }}/sdk

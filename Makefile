@@ -30,8 +30,10 @@ PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Jian
 
-# 资源是手写并已调优的：csstidy / 压缩会改写 color-mix() 与 :is()，反而弄坏样式。
+# 资源是手写并已调优的：csstidy / terser 会改写 color-mix()、:is() 和 ucode-js 的
+# 特殊写法，反而弄坏样式；关掉压缩顺带去掉对 luasrcdiet 的 host 依赖。
 LUCI_MINIFY_CSS:=
+LUCI_MINIFY_JS:=
 CONFIG_LUCI_CSSTIDY:=
 
 include $(TOPDIR)/feeds/luci/luci.mk
