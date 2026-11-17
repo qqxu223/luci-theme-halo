@@ -82,7 +82,7 @@ RT_PASS='<路由器口令>' python deploy/halo_deploy.py health    # 只探活
 
 ```bash
 git init && git add -A && git commit -m "luci-theme-halo 1.0.0"
-git remote add origin git@github.com:<你>/luci-theme-halo.git
+git remote add origin git@github.com:qqxu223/luci-theme-halo.git
 git push -u origin main
 ```
 
@@ -110,7 +110,7 @@ ls bin/packages/*/luci/luci-theme-halo*
 
 ```bash
 # 在 buildroot 根目录
-git clone https://github.com/<你>/luci-theme-halo.git package/luci-theme-halo
+git clone https://github.com/qqxu223/luci-theme-halo.git package/luci-theme-halo
 make menuconfig     # LuCI → Themes → luci-theme-halo
 make -j$(nproc)
 ```
