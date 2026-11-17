@@ -21,6 +21,9 @@ jobs:
   package:
     name: luci-theme-halo (${{ matrix.release }} → ${{ matrix.ext }})
     runs-on: ubuntu-24.04
+    env:
+      # 必须放在工作区之外：仓库根就是包目录，SDK 若落在里面会被 rsync 复制进自己
+      SDK_DIR: ${{ runner.temp }}/sdk
     strategy:
       fail-fast: false
       matrix:
@@ -48,29 +51,30 @@ jobs:
           echo "SDK = $file"
           test -n "$file"
           curl -fsSL -o /tmp/sdk.tar.zst "$base/$file"
-          mkdir -p "$GITHUB_WORKSPACE/sdk"
-          tar --zstd -xf /tmp/sdk.tar.zst -C "$GITHUB_WORKSPACE/sdk" --strip-components=1
+          mkdir -p "$SDK_DIR"
+          tar --zstd -xf /tmp/sdk.tar.zst -C "$SDK_DIR" --strip-components=1
+          rm -f /tmp/sdk.tar.zst
 
       - name: 放入包源码
         run: |
           set -euo pipefail
-          dest="$GITHUB_WORKSPACE/sdk/package/luci-theme-halo"
+          dest="$SDK_DIR/package/luci-theme-halo"
           mkdir -p "$dest"
           # 仓库根就是包目录；目录名决定 PKG_NAME，必须叫 luci-theme-halo
-          rsync -a --exclude '.git' --exclude '.github' --exclude 'preview' ./ "$dest/"
+          rsync -a --exclude '.git' --exclude '.github' --exclude 'preview' --exclude 'sdk' ./ "$dest/"
           # Windows 上提交会丢可执行位，这里兜一道：uci-defaults 不执行 = 主题不注册
           chmod +x "$dest"/root/etc/uci-defaults/* || true
           find "$dest" -type f -name '*.ut' -exec chmod 0644 {} +
 
       - name: 更新 feeds
-        working-directory: sdk
+        working-directory: ${{ env.SDK_DIR }}
         run: |
           set -euo pipefail
           ./scripts/feeds update luci
           ./scripts/feeds install luci-base
 
       - name: 编译
-        working-directory: sdk
+        working-directory: ${{ env.SDK_DIR }}
         run: |
           set -euo pipefail
           make defconfig
@@ -80,7 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
-          find sdk/bin/packages -type f -name 'luci-theme-halo*' \
+          find "$SDK_DIR/bin/packages" -type f -name 'luci-theme-halo*' \
             \( -name '*.ipk' -o -name '*.apk' \) -exec cp -v {} out/ \;
           echo "---- out ----"
           ls -lh out
