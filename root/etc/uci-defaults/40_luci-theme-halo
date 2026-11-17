@@ -1,0 +1,5 @@
+#!/bin/sh
+# Register luci-theme-halo with LuCI (does not switch the active theme by itself).
+[ -n "$(uci -q get luci.themes.Halo)" ] || uci set luci.themes.Halo='/luci-static/halo'
+uci commit luci
+exit 0

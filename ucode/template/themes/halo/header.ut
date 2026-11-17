@@ -1,0 +1,210 @@
+{#
+ luci-theme-halo — header
+ A dashboard-first LuCI shell. Functional base from luci-theme-bootstrap
+ (Apache-2.0); layout, tokens and dashboard are original.
+-#}
+
+{%
+	import { getuid, getspnam } from 'luci.core';
+
+	const boardinfo = prefetched_boardinfo ?? (ubus.call('system', 'board') ?? {});
+	const hostname = striptags(boardinfo.hostname ?? '?');
+	const model = striptags(boardinfo.model ?? boardinfo.board_name ?? '');
+	const fw = striptags(boardinfo.release?.description ?? '');
+	const page_path = ctx?.request_path ?? [];
+	const page = join('-', page_path);
+	const page_title = dispatched?.title ? _(dispatched.title) : '';
+	const extra_css = dispatched?.css ?? node?.css;
+	const brand_initial = substr(hostname, 0, 1);
+	const head_title = length(striptags(page_title)) ? striptags(page_title) : hostname;
+	/* build the whole <title> here: a separator space written immediately
+	   before the closing if-tag gets trimmed, which produced "总览 ·Roc" */
+	const doc_title = (!blank_page && length(striptags(page_title)))
+		? striptags(page_title) + ' · ' + hostname
+		: hostname;
+
+	http.prepare_content('text/html; charset=UTF-8');
+-%}
+
+<!DOCTYPE html>
+<html lang="{{ dispatcher.lang }}">
+<head>
+	<meta charset="utf-8">
+	<title>{{ doc_title }}</title>
+	<script>
+		(function () {
+			try {
+				var t = localStorage.getItem('halo.theme') || 'device';
+				var dark = t === 'dark' || (t === 'device' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+				document.documentElement.setAttribute('data-darkmode', String(dark));
+			} catch (e) {}
+		})();
+	</script>
+	{% if (blank_page): %}
+	{# LuCI's constructor formats resource URLs via String.prototype.format and its
+	   error path uses the global E(), both of which ship in cbi.js. Admin pages get
+	   it from the dispatcher; the login page needs it explicitly. #}
+	<script src="{{ resource }}/cbi.js"></script>
+	<script>
+		(function () {
+			if (typeof String.prototype.format === 'function') return;
+			function fmt(str, args) {
+				var i = 0;
+				return String(str).replace(/%%|%[-0 +]?\d*(?:\.\d+)?[sdifuxXocbq]/g, function (tok) {
+					if (tok === '%%') return '%';
+					var m = /^%([-0 +]?)(\d*)(?:\.(\d+))?([sdifuxXocbq])$/.exec(tok);
+					if (!m) return tok;
+					var flag = m[1], width = parseInt(m[2], 10) || 0, prec = m[3], type = m[4];
+					var v = args[i++], out;
+					if (type === 's') out = v == null ? '' : String(v);
+					else if (type === 'd' || type === 'i' || type === 'u') out = String(Math.trunc(Number(v) || 0));
+					else if (type === 'f') out = prec ? Number(v).toFixed(+prec) : String(Number(v));
+					else if (type === 'x') out = (Number(v) >>> 0).toString(16);
+					else if (type === 'X') out = (Number(v) >>> 0).toString(16).toUpperCase();
+					else if (type === 'o') out = (Number(v) >>> 0).toString(8);
+					else if (type === 'c') out = String.fromCharCode(Number(v));
+					else if (type === 'b') out = Number(v) ? '1' : '0';
+					else out = v == null ? '' : String(v);
+					if (prec && type === 's' && out.length > +prec) out = out.slice(0, +prec);
+					if (width > out.length) {
+						var fill = new Array(width - out.length + 1).join(flag === '0' ? '0' : ' ');
+						out = flag === '-' ? out + fill : fill + out;
+					}
+					return out;
+				});
+			}
+			String.prototype.format = function () {
+				return fmt(this, Array.prototype.slice.call(arguments));
+			};
+			if (typeof String.format !== 'function')
+				String.format = function (f) {
+					return fmt(f, Array.prototype.slice.call(arguments, 1));
+				};
+		})();
+	</script>
+	{% endif %}
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="color-scheme" content="light dark">
+	<meta name="theme-color" content="#e7e9f2" media="(prefers-color-scheme: light)">
+	<meta name="theme-color" content="#0b0c17" media="(prefers-color-scheme: dark)">
+	<link rel="stylesheet" href="{{ media }}/base.css">
+	<link rel="stylesheet" href="{{ media }}/tokens.css">
+	<link rel="stylesheet" href="{{ media }}/app.css">
+	{% if (blank_page): %}
+	<link rel="stylesheet" href="{{ media }}/login.css">
+	{% else %}
+	<link rel="stylesheet" href="{{ media }}/dash.css">
+	{% endif %}
+	{% if (extra_css): %}
+	<link rel="stylesheet" href="{{ resource }}/{{ extra_css }}">
+	{% endif %}
+	{% if (css): %}
+	<style>{{ css }}</style>
+	{% endif %}
+	<link rel="icon" href="{{ media }}/images/logo.svg" type="image/svg+xml">
+	{% if (!blank_page): %}
+	<script src="{{ dispatcher.build_url('admin/translations', dispatcher.lang) }}"></script>
+	<script src="{{ resource }}/cbi.js"></script>
+	{% endif %}
+</head>
+
+{% if (blank_page): %}
+<body class="lang_{{ dispatcher.lang }} halo-login-body">
+	<div class="halo-login">
+		<aside class="halo-login-brand">
+			<div class="halo-login-mark">{{ brand_initial }}</div>
+			<div class="halo-login-meta">
+				<h1>{{ hostname }}</h1>
+				<p>{{ model }}</p>
+				{% if (fw): %}<p class="halo-login-fw">{{ fw }}</p>{% endif %}
+			</div>
+			<div class="halo-login-foot">
+				<span>LuCI · ImmortalWrt</span>
+			</div>
+		</aside>
+{% else %}
+<body class="lang_{{ dispatcher.lang }}" data-page="{{ entityencode(page, true) }}" data-media="{{ media }}">
+	<script>
+		(function () {
+			try { if (localStorage.getItem('halo.rail') === 'min') document.body.classList.add('halo-rail-min'); } catch (e) {}
+		})();
+	</script>
+	<div class="halo-shell">
+		<aside id="halo-rail" aria-label="导航">
+			<a class="halo-brand" href="{{ dispatcher.build_url('admin/status/overview') }}">
+				<span class="halo-brand-mark">{{ brand_initial }}</span>
+				<span class="halo-brand-text">
+					<span class="halo-brand-host">{{ hostname }}</span>
+					<span class="halo-brand-sub">{{ model }}</span>
+				</span>
+			</a>
+			<nav class="halo-nav" id="halo-nav"></nav>
+			<div class="halo-rail-foot">
+				<button class="halo-rail-btn" id="halo-theme-toggle" type="button" aria-label="{{ _('Theme') }}">
+					<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M13.4 9.4A5.6 5.6 0 0 1 6.6 2.6 5.6 5.6 0 1 0 13.4 9.4z"/></svg>
+					<span class="halo-rail-foot-text" id="halo-theme-label">深色模式</span>
+				</button>
+				<a class="halo-rail-btn" href="{{ dispatcher.build_url('admin/logout') }}">
+					<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.4 2.6H3.4v10.8h3"/><path d="M9.8 5.2L12.6 8l-2.8 2.8"/><path d="M12.2 8H6.6"/></svg>
+					<span class="halo-rail-foot-text">{{ _('Logout') }}</span>
+				</a>
+			</div>
+		</aside>
+		<div class="halo-rail-scrim" id="halo-scrim"></div>
+
+		<div class="halo-main">
+			<header class="halo-top">
+				<button class="halo-top-btn" id="halo-rail-toggle" type="button" aria-label="导航">
+					<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.4 4.4h11.2M2.4 8h11.2M2.4 11.6h11.2"/></svg>
+				</button>
+				<div class="halo-title">
+					<div class="halo-title-crumb" id="halo-crumb"></div>
+					<div class="halo-title-main" id="halo-title">{{ head_title }}</div>
+				</div>
+				<span class="halo-top-spacer"></span>
+				<button class="halo-search" id="halo-search" type="button">
+					<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.6"/><path d="M10.6 10.6L13.6 13.6"/></svg>
+					<span>搜索页面或设置</span>
+					<span class="halo-kbd">/</span>
+				</button>
+				<button class="halo-top-btn" id="halo-refresh" type="button" title="刷新">
+					<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M13.4 8a5.4 5.4 0 1 1-1.6-3.8"/><path d="M13.6 2.2v3.2h-3.2"/></svg>
+				</button>
+				<div id="indicators" class="halo-indicators"></div>
+				<div class="halo-host" title="{{ model }}">
+					<span class="halo-led" id="halo-led"></span>
+					<span class="halo-host-name">{{ hostname }}</span>
+					<span class="halo-host-model">{{ model }}</span>
+				</div>
+			</header>
+
+			<div id="maincontent" tabindex="-1">
+				{% if (getuid() == 0 && getspnam('root')?.pwdp === ''): %}
+				<div class="alert-message warning">
+					<h4>{{ _('No password set!') }}</h4>
+					<p>{{ _('There is no password set on this router. Please configure a root password to protect the web interface.') }}</p>
+					{% if (dispatcher.lookup("admin/system/admin")): %}
+					<div class="right"><a class="btn" href="{{ dispatcher.build_url("admin/system/admin") }}">{{ _('Go to password configuration...') }}</a></div>
+					{% endif %}
+				</div>
+				{% endif %}
+
+				{% if (boardinfo.rootfs_type == "initramfs"): %}
+				<div class="alert-message warning">
+					<h4>{{ _('System running in recovery (initramfs) mode.') }}</h4>
+					<p>{{ _('No changes to settings will be stored and are lost after rebooting. This mode should only be used to install a firmware upgrade') }}</p>
+					{% if (dispatcher.lookup("admin/system/flash")): %}
+					<div class="right"><a class="btn" href="{{ dispatcher.build_url("admin/system/flash") }}">{{ _('Go to firmware upgrade...') }}</a></div>
+					{% endif %}
+				</div>
+				{% endif %}
+
+				<noscript>
+					<div class="alert-message warning">
+						<h4>{{ _('JavaScript required!') }}</h4>
+						<p>{{ _('You must enable JavaScript in your browser or LuCI will not work properly.') }}</p>
+					</div>
+				</noscript>
+
+				<div id="tabmenu" style="display:none"></div>
+{% endif %}

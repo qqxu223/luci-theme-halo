@@ -1,0 +1,122 @@
+/*
+ * luci-theme-halo — design tokens
+ *
+ * Palette: "Indigo & Copper" — an aircraft instrument panel. Deep indigo chassis,
+ * copper needle, cool grey glass. Two saturated hues only: one cold signal
+ * (receive / primary) and one warm metal (transmit / highlight). Everything else
+ * is a neutral tinted toward indigo so the whole surface reads as one material.
+ *
+ * base.css derives its surfaces from three HSL axes, so those are set here too.
+ */
+
+:root {
+	/* --- tint axes (base.css derives surfaces/borders/text from these) --- */
+	--background-color-h: 232;
+	--background-color-s: 24%;
+	--background-color-l: 99%;
+	--text-color-h: 233;
+	--text-color-s: 24%;
+	--text-color-l: 8%;
+	--border-color-h: 232;
+	--border-color-s: 16%;
+
+	/* --- primary: indigo ink --- */
+	--primary-color-high: #34388f;
+	--primary-color-medium: #2b2e78;
+	--primary-color-low: #20225c;
+	--on-primary-color: #ffffff;
+
+	--halo-ok: #2c7a4f;
+	--halo-warn: #a8620f;
+	--halo-bad: #b02a26;
+	--halo-ok-soft: #e6f3ec;
+	--halo-warn-soft: #fbf0e0;
+	--halo-bad-soft: #fbeae8;
+
+	/* --- data series: cold receive, warm transmit --- */
+	--halo-rx: #3a3f9e;
+	--halo-rx-soft: rgba(58, 63, 158, 0.13);
+	--halo-tx: #b5651f;
+	--halo-tx-soft: rgba(181, 101, 31, 0.095);
+	--halo-accent-soft: #eaecf9;
+
+	/* --- surfaces --- */
+	--halo-canvas: #e7e9f2;
+	--halo-surface: #ffffff;
+	--halo-surface-sunk: #f4f5fa;
+	--halo-hairline: #dcdfec;
+	--halo-hairline-strong: #c9cee0;
+
+	/* --- ink --- */
+	--halo-ink: #14162a;
+	--halo-ink-2: #454a68;
+	--halo-ink-3: #727796;
+	--halo-ink-4: #9ea3bd;
+
+	/* --- geometry --- */
+	--halo-r-card: 14px;
+	--halo-r-ctl: 9px;
+	--halo-r-pill: 999px;
+	--halo-rail-w: 236px;
+	--halo-rail-w-collapsed: 68px;
+	--halo-top-h: 58px;
+	--halo-gap: 14px;
+	--halo-pad: 22px;
+
+	--halo-shadow-1: 0 1px 2px rgba(22, 24, 48, 0.05);
+	--halo-shadow-2: 0 8px 24px -12px rgba(22, 24, 48, 0.2), 0 2px 6px rgba(22, 24, 48, 0.05);
+
+	/* --- type --- */
+	--halo-font: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+		"Microsoft YaHei", "Noto Sans SC", sans-serif;
+	--halo-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono",
+		"DejaVu Sans Mono", Consolas, monospace;
+
+	--halo-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+	--halo-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-darkmode="true"] {
+	--background-color-h: 233;
+	--background-color-s: 30%;
+	--background-color-l: 7%;
+	--text-color-h: 232;
+	--text-color-s: 20%;
+	--text-color-l: 93%;
+	--border-color-h: 233;
+	--border-color-s: 22%;
+
+	--primary-color-high: #8e93f5;
+	--primary-color-medium: #767ceb;
+	--primary-color-low: #5d63d4;
+	--on-primary-color: #0a0b18;
+
+	--halo-ok: #5cc98d;
+	--halo-warn: #e0a352;
+	--halo-bad: #ef7a72;
+	--halo-ok-soft: rgba(92, 201, 141, 0.13);
+	--halo-warn-soft: rgba(224, 163, 82, 0.13);
+	--halo-bad-soft: rgba(239, 122, 114, 0.13);
+
+	--halo-rx: #8e93f5;
+	--halo-rx-soft: rgba(142, 147, 245, 0.2);
+	--halo-tx: #e09151;
+	--halo-tx-soft: rgba(224, 145, 81, 0.2);
+	--halo-accent-soft: rgba(142, 147, 245, 0.12);
+
+	--halo-canvas: #06070d;
+	--halo-surface: #1c2138;
+	--halo-surface-sunk: #151a2e;
+	--halo-hairline: #333a5e;
+	--halo-hairline-strong: #444b75;
+
+	/* mid-greys carry almost all secondary text here; the old values sat at ~3:1
+	 * on the card surface and read as smudges in a dark room */
+	--halo-ink: #eef0fa;
+	--halo-ink-2: #c3c7dd;
+	--halo-ink-3: #9ba1bd;
+	--halo-ink-4: #7b8099;
+
+	--halo-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.55);
+	--halo-shadow-2: 0 10px 28px -14px rgba(0, 0, 0, 0.72), 0 2px 6px rgba(0, 0, 0, 0.38);
+}

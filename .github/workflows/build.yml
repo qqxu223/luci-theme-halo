@@ -1,0 +1,100 @@
+name: build
+
+# 同一份源码、两个 SDK：24.10 出 ipk（opkg），25.12 出 apk（apk-tools）。
+# 包格式由 SDK 决定，主题本身不需要任何改动。
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: luci-theme-halo (${{ matrix.release }} → ${{ matrix.ext }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - release: '24.10.8'   # opkg 时代，最后一条 24.10 线
+            ext: ipk
+          - release: '25.12.6'   # apk 时代，当前 stable
+            ext: apk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装宿主依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential zstd rsync gawk unzip file
+
+      - name: 下载 OpenWrt SDK
+        run: |
+          set -euo pipefail
+          base="https://downloads.openwrt.org/releases/${{ matrix.release }}/targets/x86/64"
+          # 文件名里带 gcc 版本，写死会随小版本变化，所以现场解析
+          file=$(curl -fsSL "$base/" \
+                 | grep -oE 'openwrt-sdk-[0-9A-Za-z._-]*Linux-x86_64\.tar\.zst' \
+                 | head -n1)
+          echo "SDK = $file"
+          test -n "$file"
+          curl -fsSL -o /tmp/sdk.tar.zst "$base/$file"
+          mkdir -p "$GITHUB_WORKSPACE/sdk"
+          tar --zstd -xf /tmp/sdk.tar.zst -C "$GITHUB_WORKSPACE/sdk" --strip-components=1
+
+      - name: 放入包源码
+        run: |
+          set -euo pipefail
+          dest="$GITHUB_WORKSPACE/sdk/package/luci-theme-halo"
+          mkdir -p "$dest"
+          # 仓库根就是包目录；目录名决定 PKG_NAME，必须叫 luci-theme-halo
+          rsync -a --exclude '.git' --exclude '.github' --exclude 'preview' ./ "$dest/"
+          # Windows 上提交会丢可执行位，这里兜一道：uci-defaults 不执行 = 主题不注册
+          chmod +x "$dest"/root/etc/uci-defaults/* || true
+          find "$dest" -type f -name '*.ut' -exec chmod 0644 {} +
+
+      - name: 更新 feeds
+        working-directory: sdk
+        run: |
+          set -euo pipefail
+          ./scripts/feeds update luci
+          ./scripts/feeds install luci-base
+
+      - name: 编译
+        working-directory: sdk
+        run: |
+          set -euo pipefail
+          make defconfig
+          make package/luci-theme-halo/compile V=s -j"$(nproc)"
+
+      - name: 收集产物
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          find sdk/bin/packages -type f -name 'luci-theme-halo*' \
+            \( -name '*.ipk' -o -name '*.apk' \) -exec cp -v {} out/ \;
+          echo "---- out ----"
+          ls -lh out
+          test "$(ls out | wc -l)" -gt 0
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: luci-theme-halo-${{ matrix.ext }}
+          path: out/*
+          if-no-files-found: error
+
+      - name: 挂到 Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true

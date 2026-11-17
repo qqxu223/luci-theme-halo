@@ -1,0 +1,289 @@
+/*
+ * luci-theme-halo — login
+ * Split screen: instrument panel on the left, a single quiet form on the right.
+ */
+
+.halo-login-body {
+	margin: 0;
+	padding: 0; /* base.css gives body a 5px frame — that alone pushes the page past 100vh */
+	display: block;
+	overflow-y: auto; /* base.css reserves a scrollbar gutter; login fits, so release it */
+	min-height: 100vh;
+	min-height: 100dvh;
+	background: var(--halo-canvas);
+	color: var(--halo-ink);
+	font-family: var(--halo-font);
+	-webkit-font-smoothing: antialiased;
+}
+
+.halo-login {
+	display: grid;
+	grid-template-columns: minmax(300px, 42%) minmax(360px, 1fr);
+	min-height: 100vh;
+	min-height: 100dvh;
+}
+
+/* the panel padding must not add to 100vh — otherwise the page always scrolls */
+.halo-login,
+.halo-login-brand,
+.halo-login-form {
+	box-sizing: border-box;
+}
+
+/* ---------- brand panel ---------- */
+
+.halo-login-brand {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-between;
+	padding: 44px 40px 32px;
+	background:
+		radial-gradient(120% 90% at 14% 6%, rgba(224, 145, 81, 0.3), transparent 58%),
+		radial-gradient(90% 70% at 90% 100%, rgba(142, 147, 245, 0.22), transparent 62%),
+		linear-gradient(155deg, #1b1d40 0%, #141630 48%, #0a0b18 100%);
+	color: #e7e9f6;
+	overflow: hidden;
+}
+
+.halo-login-brand::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background-image:
+		linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+	background-size: 44px 44px;
+	mask-image: radial-gradient(90% 70% at 30% 20%, #000 10%, transparent 78%);
+	pointer-events: none;
+}
+
+.halo-login-brand::after {
+	content: "";
+	position: absolute;
+	right: -80px;
+	bottom: -120px;
+	width: 380px;
+	height: 380px;
+	border-radius: 50%;
+	border: 1px solid rgba(224, 145, 81, 0.34);
+	box-shadow:
+		0 0 0 40px rgba(224, 145, 81, 0.055),
+		0 0 0 120px rgba(224, 145, 81, 0.03);
+	pointer-events: none;
+}
+
+.halo-login-mark {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 46px;
+	height: 46px;
+	border-radius: 13px;
+	background: linear-gradient(150deg, #e8a768, #a9571b);
+	color: #16183a;
+	font: 700 20px/1 var(--halo-font-mono);
+	letter-spacing: -0.03em;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 10px 30px -12px rgba(0, 0, 0, 0.8);
+}
+
+.halo-login-meta {
+	position: relative;
+	margin-top: auto;
+	padding-top: 40px;
+}
+
+.halo-login-meta h1 {
+	margin: 0 0 6px;
+	font-size: clamp(26px, 3.4vw, 38px);
+	font-weight: 680;
+	letter-spacing: -0.03em;
+	line-height: 1.1;
+	color: #f2f3fb;
+}
+
+.halo-login-meta p {
+	margin: 0;
+	font-size: 13px;
+	color: rgba(226, 229, 248, 0.64);
+	letter-spacing: 0.01em;
+}
+
+.halo-login-meta p.halo-login-fw {
+	margin-top: 10px;
+	font-family: var(--halo-font-mono);
+	font-size: 11px;
+	color: rgba(232, 167, 104, 0.82);
+	letter-spacing: 0.02em;
+}
+
+.halo-login-foot {
+	position: relative;
+	margin-top: 28px;
+	padding-top: 16px;
+	border-top: 1px solid rgba(255, 255, 255, 0.09);
+	font-family: var(--halo-font-mono);
+	font-size: 10.5px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: rgba(226, 229, 248, 0.4);
+}
+
+/* ---------- form ---------- */
+
+.halo-login-form {
+	display: grid;
+	place-items: center;
+	padding: 40px 24px;
+}
+
+.halo-login-card {
+	width: min(360px, 100%);
+}
+
+.halo-login-head h2 {
+	margin: 0 0 5px;
+	font-size: 21px;
+	font-weight: 680;
+	letter-spacing: -0.02em;
+	color: var(--halo-ink);
+}
+
+.halo-login-head p {
+	margin: 0 0 24px;
+	font-size: 12.5px;
+	color: var(--halo-ink-3);
+}
+
+.halo-login-error {
+	margin-bottom: 16px;
+	padding: 9px 12px;
+	border: 1px solid color-mix(in srgb, var(--halo-bad) 32%, transparent);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-bad-soft);
+	color: var(--halo-bad);
+	font-size: 12px;
+}
+
+.halo-login-fields {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+}
+
+.halo-field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.halo-field > span {
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--halo-ink-4);
+}
+
+.halo-field input {
+	width: 100%;
+	height: 42px;
+	padding: 0 12px;
+	border: 1px solid var(--halo-hairline-strong);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-surface);
+	color: var(--halo-ink);
+	font-family: var(--halo-font-mono);
+	font-size: 13px;
+	transition: border-color 140ms var(--halo-ease), box-shadow 140ms var(--halo-ease);
+}
+
+.halo-field input:focus {
+	outline: none;
+	border-color: var(--primary-color-high);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color-high) 16%, transparent);
+}
+
+.halo-login-submit {
+	margin-top: 6px;
+	height: 42px;
+	border: 0;
+	border-radius: var(--halo-r-ctl);
+	background: var(--primary-color-medium);
+	color: var(--on-primary-color);
+	font-family: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	cursor: pointer;
+	transition: background 140ms var(--halo-ease), transform 90ms var(--halo-ease);
+}
+
+.halo-login-submit:hover {
+	background: var(--primary-color-low);
+}
+
+.halo-login-submit:active {
+	transform: translateY(1px);
+}
+
+.halo-login-hint {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	margin-top: 26px;
+	padding-top: 14px;
+	border-top: 1px solid var(--halo-hairline);
+	font-family: var(--halo-font-mono);
+	font-size: 10.5px;
+	color: var(--halo-ink-4);
+	letter-spacing: 0.02em;
+}
+
+/* ---------- responsive ---------- */
+
+@media (max-width: 860px) {
+	.halo-login {
+		grid-template-columns: minmax(0, 1fr);
+		grid-template-rows: auto 1fr;
+		min-height: 100vh;
+	}
+	.halo-login-brand {
+		padding: 22px 22px 20px;
+		flex-direction: row;
+		align-items: center;
+		gap: 14px;
+	}
+	.halo-login-meta {
+		margin: 0;
+		padding: 0;
+	}
+	.halo-login-meta h1 {
+		font-size: 18px;
+		margin-bottom: 2px;
+	}
+	.halo-login-meta p {
+		font-size: 11.5px;
+	}
+	.halo-login-fw,
+	.halo-login-foot {
+		display: none;
+	}
+	.halo-login-brand::after {
+		width: 240px;
+		height: 240px;
+		right: -110px;
+		bottom: -140px;
+	}
+	.halo-login-mark {
+		width: 38px;
+		height: 38px;
+		border-radius: 11px;
+		font-size: 16px;
+		flex: 0 0 auto;
+	}
+	.halo-login-form {
+		padding: 30px 20px 48px;
+		align-items: start;
+	}
+}

@@ -1,0 +1,41 @@
+{#
+ luci-theme-halo — login page
+-#}
+
+{% include('header', { blank_page: true }) %}
+{%
+	const board = ubus.call('system', 'board') ?? {};
+	const hostname = striptags(board.hostname ?? '?');
+	const model = striptags(board.model ?? board.board_name ?? '');
+	const fw = striptags(board.release?.description ?? '');
+-%}
+
+		<main class="halo-login-form">
+			<div class="halo-login-card">
+				<div class="halo-login-head">
+					<h2>登录</h2>
+					<p>使用管理员账号进入控制台</p>
+				</div>
+
+				{% if (fuser): %}
+				<div class="halo-login-error">{{ _('Invalid username and/or password! Please try again.') }}</div>
+				{% endif %}
+
+				<form method="post" class="halo-login-fields">
+					<label class="halo-field">
+						<span>{{ _('Username') }}</span>
+						<input name="luci_username" id="luci_username" type="text" value="{{ entityencode(duser, true) }}" autocomplete="username" autocapitalize="off" autocorrect="off">
+					</label>
+					<label class="halo-field">
+						<span>{{ _('Password') }}</span>
+						<input name="luci_password" id="luci_password" type="password" autocomplete="current-password">
+					</label>
+					<button type="submit" class="halo-login-submit">登录</button>
+				</form>
+
+				<div class="halo-login-hint">
+					<span>{{ hostname }}{% if (model): %} · {{ model }}{% endif %}</span>
+					{% if (fw): %}<span>{{ fw }}</span>{% endif %}
+				</div>
+			</div>
+		</main>

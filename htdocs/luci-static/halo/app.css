@@ -1,0 +1,1595 @@
+/*
+ * luci-theme-halo — shell + component skin
+ * Loaded after base.css (LuCI functional layer). This file owns layout,
+ * typography, colour and the reskin of LuCI's CBI widgets.
+ */
+
+/* ============================================================ reset/shell */
+
+html {
+	-webkit-text-size-adjust: 100%;
+	scrollbar-gutter: stable;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	background: var(--halo-canvas);
+	color: var(--halo-ink);
+	font-family: var(--halo-font);
+	font-size: 13.5px;
+	line-height: 1.55;
+	-webkit-font-smoothing: antialiased;
+}
+
+body.halo-locked {
+	overflow: hidden;
+}
+
+.halo-shell {
+	display: grid;
+	grid-template-columns: var(--halo-rail-w) minmax(0, 1fr);
+	min-height: 100vh;
+	transition: grid-template-columns 240ms var(--halo-ease);
+}
+
+body.halo-rail-min .halo-shell {
+	grid-template-columns: var(--halo-rail-w-collapsed) minmax(0, 1fr);
+}
+
+.halo-main {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	min-height: 100vh;
+}
+
+/* ============================================================ rail (nav) */
+
+#halo-rail {
+	position: sticky;
+	top: 0;
+	align-self: start;
+	display: flex;
+	flex-direction: column;
+	height: 100vh;
+	background: var(--halo-surface);
+	border-right: 1px solid var(--halo-hairline);
+	z-index: 40;
+}
+
+.halo-brand {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: var(--halo-top-h);
+	padding: 0 16px;
+	border-bottom: 1px solid var(--halo-hairline);
+	text-decoration: none;
+	color: inherit;
+	flex: 0 0 auto;
+	overflow: hidden;
+}
+
+.halo-brand-mark {
+	display: grid;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	flex: 0 0 auto;
+	border-radius: 9px;
+	/* copper plate: the one warm anchor in an otherwise cold chrome */
+	background: linear-gradient(150deg, #eab073, #a9571b);
+	color: #171a3d;
+	font: 600 13px/1 var(--halo-font-mono);
+	letter-spacing: -0.02em;
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.halo-brand-text {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.2;
+}
+
+.halo-brand-host {
+	font-weight: 650;
+	font-size: 13.5px;
+	letter-spacing: -0.01em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.halo-brand-sub {
+	font-size: 10.5px;
+	color: var(--halo-ink-3);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.halo-nav {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	padding: 12px 10px 20px;
+}
+
+.halo-nav::-webkit-scrollbar {
+	width: 8px;
+}
+
+.halo-nav::-webkit-scrollbar-thumb {
+	background: var(--halo-hairline-strong);
+	border-radius: 8px;
+	border: 2px solid var(--halo-surface);
+}
+
+.halo-nav-group + .halo-nav-group {
+	margin-top: 16px;
+}
+
+.halo-nav-label {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 8px 6px;
+	color: var(--halo-ink-4);
+	font-size: 10px;
+	font-weight: 600;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+body.halo-rail-min .halo-nav-label {
+	opacity: 0;
+	height: 8px;
+	padding: 0;
+}
+
+.halo-nav-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: 34px;
+	padding: 0 9px;
+	margin: 1px 0;
+	border-radius: var(--halo-r-ctl);
+	color: var(--halo-ink-2);
+	text-decoration: none;
+	font-size: 13px;
+	position: relative;
+	white-space: nowrap;
+	transition: background 140ms var(--halo-ease), color 140ms var(--halo-ease);
+}
+
+.halo-nav-item:hover {
+	background: var(--halo-surface-sunk);
+	color: var(--halo-ink);
+}
+
+.halo-nav-item.is-active {
+	background: var(--halo-accent-soft);
+	color: var(--primary-color-low);
+	font-weight: 600;
+}
+
+[data-darkmode="true"] .halo-nav-item.is-active {
+	color: var(--primary-color-high);
+}
+
+.halo-nav-item.is-active::before {
+	content: "";
+	position: absolute;
+	left: -10px;
+	top: 8px;
+	bottom: 8px;
+	width: 2px;
+	border-radius: 0 2px 2px 0;
+	background: var(--primary-color-high);
+}
+
+.halo-nav-ico {
+	width: 17px;
+	height: 17px;
+	flex: 0 0 auto;
+	display: grid;
+	place-items: center;
+	color: currentColor;
+	opacity: 0.85;
+}
+
+.halo-nav-ico svg {
+	width: 17px;
+	height: 17px;
+}
+
+.halo-nav-text {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.halo-nav-count {
+	flex: 0 0 auto;
+	min-width: 18px;
+	height: 18px;
+	padding: 0 5px;
+	border-radius: var(--halo-r-pill);
+	background: var(--halo-surface-sunk);
+	border: 1px solid var(--halo-hairline);
+	color: var(--halo-ink-3);
+	font: 600 10.5px/17px var(--halo-font-mono);
+	text-align: center;
+}
+
+body.halo-rail-min .halo-nav-text,
+body.halo-rail-min .halo-nav-count,
+body.halo-rail-min .halo-brand-text,
+body.halo-rail-min .halo-rail-foot-text {
+	display: none;
+}
+
+body.halo-rail-min .halo-nav-item {
+	justify-content: center;
+	padding: 0;
+}
+
+body.halo-rail-min #halo-rail-toggle svg {
+	transform: scaleX(-1);
+}
+
+body.halo-rail-min .halo-brand {
+	justify-content: center;
+	padding: 0;
+}
+
+.halo-rail-foot {
+	flex: 0 0 auto;
+	border-top: 1px solid var(--halo-hairline);
+	padding: 8px 10px 10px;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.halo-rail-btn {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	height: 32px;
+	padding: 0 9px;
+	border: 0;
+	border-radius: var(--halo-r-ctl);
+	background: transparent;
+	color: var(--halo-ink-3);
+	font: inherit;
+	font-size: 12.5px;
+	cursor: pointer;
+	width: 100%;
+	text-align: left;
+	transition: background 140ms var(--halo-ease), color 140ms var(--halo-ease);
+}
+
+.halo-rail-btn:hover {
+	background: var(--halo-surface-sunk);
+	color: var(--halo-ink);
+}
+
+.halo-rail-btn svg {
+	width: 16px;
+	height: 16px;
+	flex: 0 0 auto;
+}
+
+body.halo-rail-min .halo-rail-btn {
+	justify-content: center;
+	padding: 0;
+}
+
+/* ============================================================ topbar */
+
+.halo-top {
+	position: sticky;
+	top: 0;
+	z-index: 30;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	height: var(--halo-top-h);
+	padding: 0 18px 0 20px;
+	background: color-mix(in srgb, var(--halo-surface) 82%, transparent);
+	backdrop-filter: blur(14px) saturate(1.4);
+	-webkit-backdrop-filter: blur(14px) saturate(1.4);
+	border-bottom: 1px solid var(--halo-hairline);
+	flex: 0 0 auto;
+}
+
+.halo-title {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	gap: 1px;
+}
+
+.halo-title-crumb {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	font-size: 10.5px;
+	color: var(--halo-ink-4);
+	letter-spacing: 0.04em;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.halo-title-crumb a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.halo-title-crumb a:hover {
+	color: var(--primary-color-high);
+}
+
+.halo-title-main {
+	font-size: 15px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.halo-top-spacer {
+	flex: 1 1 auto;
+}
+
+.halo-search {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	width: 208px;
+	height: 32px;
+	padding: 0 10px;
+	border: 1px solid var(--halo-hairline);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-surface-sunk);
+	color: var(--halo-ink-3);
+	cursor: pointer;
+	transition: border-color 140ms var(--halo-ease), background 140ms var(--halo-ease);
+}
+
+.halo-search:hover {
+	border-color: var(--halo-hairline-strong);
+	background: var(--halo-surface);
+}
+
+.halo-search svg {
+	width: 14px;
+	height: 14px;
+	flex: 0 0 auto;
+}
+
+.halo-search span {
+	flex: 1 1 auto;
+	font-size: 12.5px;
+	text-align: left;
+}
+
+.halo-kbd {
+	font: 600 10px/1 var(--halo-font-mono);
+	padding: 3px 5px;
+	border: 1px solid var(--halo-hairline-strong);
+	border-radius: 5px;
+	color: var(--halo-ink-4);
+	background: var(--halo-surface);
+}
+
+.halo-top-btn {
+	display: grid;
+	place-items: center;
+	width: 32px;
+	height: 32px;
+	border: 1px solid var(--halo-hairline);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-surface);
+	color: var(--halo-ink-2);
+	cursor: pointer;
+	transition: color 140ms var(--halo-ease), border-color 140ms var(--halo-ease),
+		background 140ms var(--halo-ease);
+}
+
+.halo-top-btn:hover {
+	color: var(--primary-color-high);
+	border-color: var(--primary-color-high);
+}
+
+.halo-top-btn svg {
+	width: 16px;
+	height: 16px;
+}
+
+.halo-host {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	height: 32px;
+	padding: 0 11px 0 9px;
+	border: 1px solid var(--halo-hairline);
+	border-radius: var(--halo-r-pill);
+	background: var(--halo-surface);
+	max-width: 240px;
+}
+
+.halo-led {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--halo-ok);
+	box-shadow: 0 0 0 3px var(--halo-ok-soft);
+	flex: 0 0 auto;
+}
+
+.halo-led.is-warn {
+	background: var(--halo-warn);
+	box-shadow: 0 0 0 3px var(--halo-warn-soft);
+}
+
+.halo-led.is-down {
+	background: var(--halo-bad);
+	box-shadow: 0 0 0 3px var(--halo-bad-soft);
+}
+
+.halo-host-name {
+	font-size: 12.5px;
+	font-weight: 600;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.halo-host-model {
+	font-size: 11px;
+	color: var(--halo-ink-4);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 96px;
+}
+
+/* ============================================================ content */
+
+#maincontent {
+	flex: 1 1 auto;
+	min-width: 0;
+	padding: var(--halo-pad) clamp(14px, 2vw, 28px) 40px;
+	outline: none;
+}
+
+#view {
+	max-width: 1440px;
+	margin: 0 auto;
+	min-width: 0;
+}
+
+#tabmenu {
+	max-width: 1440px;
+	margin: 0 auto 12px;
+}
+
+#tabmenu:empty {
+	display: none;
+}
+
+/* LuCI page heading */
+#view > h2,
+#view > .cbi-map > h2 {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 2px 0 16px;
+	font-size: 19px;
+	font-weight: 680;
+	letter-spacing: -0.02em;
+	color: var(--halo-ink);
+}
+
+#view > h2::before,
+#view > .cbi-map > h2::before {
+	content: "";
+	width: 3px;
+	height: 15px;
+	border-radius: 2px;
+	background: var(--primary-color-high);
+}
+
+/* ============================================================ cards */
+
+#view .cbi-section,
+#view fieldset.cbi-section,
+#view .cbi-map > .cbi-section,
+#view .cbi-section-node {
+	border: 1px solid var(--halo-hairline);
+	border-radius: var(--halo-r-card);
+	background: var(--halo-surface);
+	box-shadow: var(--halo-shadow-1);
+	padding: 0;
+	margin: 0 0 var(--halo-gap);
+	overflow: hidden;
+}
+
+#view .cbi-section-emphasis {
+	border-color: var(--primary-color-high);
+}
+
+#view .cbi-section > h3,
+#view .cbi-title > h3,
+#view .cbi-section > legend,
+#view .cbi-section legend {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+	padding: 13px 16px;
+	border: 0;
+	border-bottom: 1px solid var(--halo-hairline);
+	font-size: 12.5px;
+	font-weight: 650;
+	letter-spacing: 0.01em;
+	color: var(--halo-ink);
+	background: transparent;
+	width: auto;
+	float: none;
+}
+
+#view .cbi-section > h3 + *,
+#view .cbi-title > h3 + * {
+	margin-top: 0;
+}
+
+#view .cbi-title {
+	display: block;
+}
+
+#view .cbi-section > .cbi-section,
+#view .cbi-section-node .cbi-section {
+	border: 0;
+	box-shadow: none;
+	margin: 0;
+	border-radius: 0;
+}
+
+#view .cbi-section-node {
+	border: 0;
+	box-shadow: none;
+	border-radius: 0;
+	padding: 0;
+}
+
+/* section body rhythm */
+#view .cbi-section > .cbi-value,
+#view .cbi-section > .cbi-section-node > .cbi-value {
+	padding: 11px 16px;
+	margin: 0;
+	border-bottom: 1px solid color-mix(in srgb, var(--halo-hairline) 65%, transparent);
+}
+
+#view .cbi-section > .cbi-value:last-child,
+#view .cbi-section-node > .cbi-value:last-child {
+	border-bottom: 0;
+}
+
+#view .cbi-value {
+	display: grid;
+	grid-template-columns: minmax(120px, 208px) minmax(0, 1fr);
+	gap: 4px 16px;
+	align-items: start;
+}
+
+#view .cbi-value-title,
+#view .cbi-value > label.cbi-value-title {
+	width: auto;
+	float: none;
+	padding: 5px 0 0;
+	color: var(--halo-ink-2);
+	font-size: 12.5px;
+	font-weight: 550;
+	text-align: left;
+}
+
+#view .cbi-value-field {
+	min-width: 0;
+}
+
+#view .cbi-value-description {
+	margin: 4px 0 0;
+	color: var(--halo-ink-3);
+	font-size: 11.5px;
+	line-height: 1.5;
+}
+
+#view .cbi-value-description:not(:empty)::before {
+	display: none;
+}
+
+/* ============================================================ controls */
+
+#view input,
+#view select,
+#view textarea,
+#view button,
+#view .cbi-button,
+#view .btn {
+	font-family: inherit;
+	font-size: 13px;
+}
+
+#view input[type="text"],
+#view input[type="password"],
+#view input[type="number"],
+#view input[type="search"],
+#view input[type="url"],
+#view input[type="email"],
+#view textarea,
+#view select,
+#view .cbi-input-text,
+#view .cbi-input-password,
+#view .cbi-input-select,
+#view .cbi-input-textarea {
+	width: 100%;
+	min-height: 34px;
+	padding: 6px 10px;
+	border: 1px solid var(--halo-hairline-strong);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-surface);
+	color: var(--halo-ink);
+	transition: border-color 140ms var(--halo-ease), box-shadow 140ms var(--halo-ease);
+	box-shadow: none;
+}
+
+#view textarea {
+	min-height: 90px;
+	line-height: 1.6;
+	resize: vertical;
+	font-family: var(--halo-font-mono);
+	font-size: 12px;
+}
+
+#view input[type="text"]:focus,
+#view input[type="password"]:focus,
+#view input[type="number"]:focus,
+#view textarea:focus,
+#view select:focus,
+#view .cbi-input-text:focus {
+	outline: none;
+	border-color: var(--primary-color-high);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary-color-high) 16%, transparent);
+}
+
+#view input[type="checkbox"],
+#view input[type="radio"] {
+	width: 16px;
+	height: 16px;
+	accent-color: var(--primary-color-high);
+	vertical-align: -3px;
+	cursor: pointer;
+}
+
+#view .cbi-button,
+#view button.cbi-button,
+#view .btn,
+#view input[type="submit"],
+#view input[type="button"] {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	min-height: 32px;
+	padding: 5px 13px;
+	border: 1px solid var(--halo-hairline-strong);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-surface);
+	color: var(--halo-ink);
+	font-size: 12.5px;
+	font-weight: 550;
+	cursor: pointer;
+	box-shadow: none;
+	text-shadow: none;
+	transition: background 140ms var(--halo-ease), border-color 140ms var(--halo-ease),
+		color 140ms var(--halo-ease), transform 90ms var(--halo-ease);
+}
+
+#view .cbi-button:hover,
+#view .btn:hover {
+	background: var(--halo-surface-sunk);
+	border-color: var(--halo-ink-4);
+}
+
+#view .cbi-button:active,
+#view .btn:active {
+	transform: translateY(1px);
+}
+
+#view .cbi-button-action,
+#view .cbi-button-apply,
+#view .cbi-button-save,
+#view .cbi-button-positive,
+#view .cbi-button-add,
+#view .cbi-button-fieldadd,
+#view .btn.primary,
+#view .cbi-page-actions .cbi-button-apply {
+	background: var(--primary-color-medium);
+	border-color: var(--primary-color-medium);
+	color: var(--on-primary-color);
+}
+
+#view .cbi-button-action:hover,
+#view .cbi-button-apply:hover,
+#view .cbi-button-save:hover,
+#view .cbi-button-positive:hover,
+#view .cbi-button-add:hover,
+#view .cbi-page-actions .cbi-button-apply:hover {
+	background: var(--primary-color-low);
+	border-color: var(--primary-color-low);
+	color: var(--on-primary-color);
+}
+
+#view .cbi-button-negative,
+#view .cbi-button-reset,
+#view .cbi-button-remove,
+#view .cbi-section-remove .cbi-button,
+#view .btn.danger {
+	background: var(--halo-surface);
+	border-color: color-mix(in srgb, var(--halo-bad) 38%, var(--halo-hairline));
+	color: var(--halo-bad);
+}
+
+#view .cbi-button-negative:hover,
+#view .cbi-button-remove:hover,
+#view .btn.danger:hover {
+	background: var(--halo-bad-soft);
+	border-color: var(--halo-bad);
+	color: var(--halo-bad);
+}
+
+#view .cbi-button-reload,
+#view .cbi-button-edit,
+#view .cbi-button-neutral {
+	background: var(--halo-surface);
+}
+
+#view .cbi-page-actions,
+#view .cbi-section-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+/* Save bar: a bottom toolbar, not a pill floating over the cards. Sticky to the
+ * viewport bottom while the form is being scrolled, square and hairline-capped
+ * so it reads as chrome instead of covering a card. */
+#view .cbi-page-actions {
+	position: sticky;
+	bottom: 0;
+	z-index: 12;
+	margin: 8px 0 0;
+	padding: 12px 16px;
+	border: 1px solid var(--halo-hairline);
+	border-bottom: 0;
+	border-radius: var(--halo-r-ctl) var(--halo-r-ctl) 0 0;
+	background: var(--halo-surface);
+	box-shadow: 0 -14px 26px -18px rgba(22, 24, 48, 0.38);
+}
+
+/* ============================================================ tables */
+
+#view .table,
+#view table.table {
+	width: 100%;
+	border-collapse: collapse;
+	border: 0;
+	background: transparent;
+	font-size: 12.5px;
+}
+
+#view .table .tr,
+#view .table tr {
+	border-bottom: 1px solid color-mix(in srgb, var(--halo-hairline) 70%, transparent);
+}
+
+#view .table .tr:last-child,
+#view .table tr:last-child {
+	border-bottom: 0;
+}
+
+#view .table .th,
+#view .table th,
+#view .table .tr.table-titles,
+#view .table .tr.cbi-section-table-titles {
+	background: var(--halo-surface-sunk);
+	border-bottom: 1px solid var(--halo-hairline);
+	color: var(--halo-ink-3);
+	font-size: 10.5px;
+	font-weight: 650;
+	letter-spacing: 0.07em;
+	text-transform: uppercase;
+	padding: 8px 12px;
+	text-align: left;
+	white-space: nowrap;
+}
+
+#view .table .td,
+#view .table td {
+	padding: 9px 12px;
+	color: var(--halo-ink);
+	vertical-align: middle;
+	border: 0;
+}
+
+#view .table .tr:hover .td {
+	background: var(--halo-surface-sunk);
+}
+
+#view .table .td.left,
+#view .table .th.left {
+	text-align: left;
+}
+
+#view .table .td.right,
+#view .table .th.right {
+	text-align: right;
+}
+
+#view .table .td.center,
+#view .table .th.center {
+	text-align: center;
+}
+
+/* numeric cells read as data */
+#view .table .td.right,
+#view .table .td.center {
+	font-family: var(--halo-font-mono);
+	font-variant-numeric: tabular-nums;
+	font-size: 12px;
+}
+
+#view .ifacebox {
+	border: 1px solid var(--halo-hairline);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-surface);
+	overflow: hidden;
+}
+
+/* LuCI paints the zone colour as a solid inline background on the header.
+ * Keep the zone identity as a tint + accent bar so interface cards stay calm. */
+#view .ifacebox-head {
+	padding: 7px 10px;
+	font-size: 11.5px;
+	font-weight: 600;
+	border-bottom: 1px solid var(--halo-hairline);
+	background: color-mix(in srgb, rgb(var(--zone-color-rgb, 120, 140, 138)) 14%, var(--halo-surface)) !important;
+	color: var(--halo-ink) !important;
+	box-shadow: inset 3px 0 0 rgb(var(--zone-color-rgb, 120, 140, 138));
+}
+
+#view .ifacebox-head strong {
+	color: inherit;
+}
+
+#view .ifacebox-body {
+	padding: 8px 10px;
+	font-size: 12px;
+	line-height: 1.7;
+}
+
+#view .zonebadge,
+#view .ifacebadge,
+#view .label {
+	border-radius: var(--halo-r-pill);
+	font-size: 10.5px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	padding: 2px 8px;
+	border: 1px solid var(--halo-hairline);
+	background: var(--halo-surface-sunk);
+	color: var(--halo-ink-2);
+}
+
+/* tabs */
+#view ul.tabs,
+#maincontent ul.tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 3px;
+	list-style: none;
+	margin: 0 0 14px;
+	padding: 4px;
+	width: fit-content;
+	max-width: 100%;
+	border: 1px solid var(--halo-hairline);
+	border-radius: 10px;
+	background: var(--halo-surface-sunk);
+}
+
+#view .cbi-section > ul.tabs,
+#view .cbi-section-node > ul.tabs {
+	margin: 12px 16px;
+}
+
+/* LuCI 25 renders page tabs as ul.cbi-tabmenu — same segmented control look. */
+#maincontent ul.cbi-tabmenu {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 3px;
+	list-style: none;
+	margin: 0 0 14px;
+	padding: 4px;
+	width: fit-content;
+	max-width: 100%;
+	border: 1px solid var(--halo-hairline);
+	border-radius: 10px;
+	background: var(--halo-surface-sunk);
+}
+
+#maincontent ul.cbi-tabmenu > li {
+	margin: 0;
+}
+
+#maincontent ul.cbi-tabmenu > li {
+	flex: 0 0 auto;
+}
+
+#maincontent ul.cbi-tabmenu > li > a {
+	display: block;
+	padding: 5px 12px;
+	white-space: nowrap;
+	/* base.css clips these to ellipsis; a 1px rounding gap was truncating labels */
+	overflow: visible;
+	text-overflow: clip;
+	border-radius: 7px;
+	font-size: 12.5px;
+	color: var(--halo-ink-3);
+	text-decoration: none;
+	transition: background 140ms var(--halo-ease), color 140ms var(--halo-ease);
+}
+
+#maincontent ul.cbi-tabmenu > li > a:hover {
+	color: var(--halo-ink);
+}
+
+/* a white pill vanishes on a white card — tint the active tab instead */
+#maincontent ul.cbi-tabmenu > li.cbi-tab > a {
+	background: color-mix(in srgb, var(--halo-rx) 12%, var(--halo-surface));
+	color: var(--primary-color-high);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--halo-rx) 22%, transparent);
+}
+
+#maincontent ul.cbi-tabmenu > li.cbi-tab-disabled > a {
+	color: var(--halo-ink-4);
+	cursor: default;
+}
+
+#maincontent ul.tabs li {
+	margin: 0;
+}
+
+#maincontent ul.tabs li a {
+	display: block;
+	padding: 5px 12px;
+	border-radius: 7px;
+	font-size: 12.5px;
+	color: var(--halo-ink-3);
+	text-decoration: none;
+	transition: background 140ms var(--halo-ease), color 140ms var(--halo-ease);
+}
+
+#maincontent ul.tabs li a:hover {
+	color: var(--halo-ink);
+}
+
+#maincontent ul.tabs li.active a,
+#maincontent ul.tabs li.cbi-tab-active a {
+	background: color-mix(in srgb, var(--halo-rx) 12%, var(--halo-surface));
+	color: var(--primary-color-high);
+	font-weight: 600;
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--halo-rx) 22%, transparent);
+}
+
+/* checkboxes used as field prefixes stay inline */
+#view .cbi-value-title input[type="checkbox"],
+#view .cbi-value-title input[type="radio"] {
+	display: inline-block;
+	float: none;
+	margin: 0 6px 0 0;
+	vertical-align: -3px;
+}
+
+#view .cbi-value-title label,
+#view label.cbi-value-title {
+	white-space: normal;
+	line-height: 1.5;
+}
+
+/* zone colour chips: keep the hue, calm the fill */
+#view .zonebadge,
+#view .ifacebadge,
+#view .cbi-tag {
+	padding: 2px 8px;
+	border-radius: 6px;
+	font-size: 10.5px;
+	font-weight: 650;
+	letter-spacing: 0.02em;
+	line-height: 1.6;
+	box-shadow: none;
+}
+
+/* the sticky save bar is the last node of the form, so a small trailing gap is
+ * enough — at full scroll it lands in flow instead of hovering over a row */
+#view {
+	padding-bottom: 28px;
+}
+
+/* don't let single-line text fields run the full card width */
+#view .cbi-value-field > input[type="text"],
+#view .cbi-value-field > input[type="password"],
+#view .cbi-value-field > input[type="number"],
+#view .cbi-value-field > select,
+#view .cbi-value-field > .cbi-dropdown:not(.btn):not(.cbi-button) {
+	max-width: 520px;
+}
+
+/* ============================================================ misc LuCI */
+
+#view .pager {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 8px 0;
+}
+
+#view .pager > * {
+	flex: 0 0 auto;
+}
+
+#view .pager a,
+#view .pager strong {
+	display: inline-grid;
+	place-items: center;
+	min-width: 30px;
+	height: 30px;
+	padding: 0 8px;
+	border: 1px solid var(--halo-hairline);
+	border-radius: 8px;
+	font-size: 12px;
+	font-family: var(--halo-font-mono);
+	color: var(--halo-ink-2);
+	text-decoration: none;
+}
+
+#view .pager strong {
+	background: var(--primary-color-medium);
+	border-color: var(--primary-color-medium);
+	color: var(--on-primary-color);
+}
+
+#view .alert-message {
+	border: 1px solid var(--halo-hairline);
+	border-left: 3px solid var(--halo-ink-4);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-surface);
+	padding: 12px 14px;
+	margin: 0 0 var(--halo-gap);
+	box-shadow: var(--halo-shadow-1);
+}
+
+#view .alert-message.warning {
+	border-left-color: var(--halo-warn);
+	background: var(--halo-warn-soft);
+}
+
+#view .alert-message.danger,
+#view .alert-message.error {
+	border-left-color: var(--halo-bad);
+	background: var(--halo-bad-soft);
+}
+
+#view .alert-message.success {
+	border-left-color: var(--halo-ok);
+	background: var(--halo-ok-soft);
+}
+
+#view .alert-message h4,
+#view .alert-message h5 {
+	margin: 0 0 3px;
+	font-size: 12.5px;
+	font-weight: 650;
+}
+
+#view .alert-message p {
+	margin: 0;
+	font-size: 12px;
+	color: var(--halo-ink-2);
+}
+
+#view .cbi-progressbar {
+	position: relative;
+	height: 8px;
+	min-width: 90px;
+	margin: 6px 0;
+	border-radius: var(--halo-r-pill);
+	background: var(--halo-surface-sunk);
+	border: 1px solid var(--halo-hairline);
+	overflow: hidden;
+}
+
+#view .cbi-progressbar > div {
+	height: 100%;
+	border-radius: var(--halo-r-pill);
+	background: var(--primary-color-high);
+	transition: width 400ms var(--halo-ease);
+}
+
+#view .cbi-progressbar::before {
+	content: attr(title);
+	position: static;
+	display: block;
+	font: 600 11px/1.4 var(--halo-font-mono);
+	color: var(--halo-ink-2);
+	background: none;
+	white-space: nowrap;
+	margin-top: 4px;
+}
+
+#view .cbi-tooltip {
+	max-width: 320px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	border: 1px solid var(--halo-hairline);
+	background: var(--halo-surface);
+	box-shadow: var(--halo-shadow-2);
+	font-size: 11.5px;
+	color: var(--halo-ink-2);
+}
+
+#view .cbi-dropdown:not(.btn):not(.cbi-button),
+#view .cbi-dynlist {
+	min-height: 34px;
+	border: 1px solid var(--halo-hairline-strong);
+	border-radius: var(--halo-r-ctl);
+	background: var(--halo-surface);
+}
+
+#view .cbi-dropdown > ul.dropdown,
+#view .cbi-dropdown:not(.btn):not(.cbi-button) > ul {
+	border: 1px solid var(--halo-hairline);
+	border-radius: 10px;
+	background: var(--halo-surface);
+	box-shadow: var(--halo-shadow-2);
+	overflow: hidden;
+	padding: 4px;
+}
+
+#view .cbi-dropdown > ul.dropdown > li,
+#view .cbi-dropdown:not(.btn):not(.cbi-button) > ul > li {
+	border-radius: 7px;
+	padding: 6px 9px;
+	font-size: 12.5px;
+}
+
+#view .cbi-dropdown > ul.dropdown > li:hover,
+#view .cbi-dropdown > ul.dropdown > li[selected] {
+	background: var(--halo-accent-soft);
+	color: var(--primary-color-low);
+}
+
+/* read-only / log panes */
+#view textarea[readonly] {
+	font: 11.5px/1.65 var(--halo-font-mono);
+	background: var(--halo-surface-sunk);
+	color: var(--halo-ink-2);
+	border-radius: 10px;
+	padding: 10px 12px;
+	height: 340px;
+}
+
+#view .cbi-section-node + .cbi-section-node {
+	border-top: 1px solid var(--halo-hairline);
+}
+
+/* ============================================================ dashboard mount */
+
+#halo-dash {
+	max-width: 1440px;
+	margin: 0 auto;
+}
+
+body.halo-overview.halo-dash-ready #view,
+body.halo-overview.halo-dash-ready #maincontent > h2 {
+	display: none !important;
+}
+
+body.halo-overview #tabmenu {
+	display: none !important;
+}
+
+/* command palette */
+.halo-cmdk {
+	position: fixed;
+	inset: 0;
+	z-index: 200;
+	display: flex;
+	justify-content: center;
+	padding: 12vh 16px 16px;
+	background: rgba(10, 11, 26, 0.44);
+	backdrop-filter: blur(2px);
+}
+
+.halo-cmdk[hidden] {
+	display: none;
+}
+
+.halo-cmdk-box {
+	width: min(560px, 100%);
+	max-height: 60vh;
+	display: flex;
+	flex-direction: column;
+	border: 1px solid var(--halo-hairline);
+	border-radius: 14px;
+	background: var(--halo-surface);
+	box-shadow: var(--halo-shadow-2);
+	overflow: hidden;
+}
+
+.halo-cmdk-head {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 12px 14px;
+	border-bottom: 1px solid var(--halo-hairline);
+	color: var(--halo-ink-3);
+}
+
+.halo-cmdk-head svg {
+	width: 15px;
+	height: 15px;
+	flex: 0 0 auto;
+}
+
+.halo-cmdk-head input {
+	flex: 1 1 auto;
+	border: 0;
+	background: transparent;
+	color: var(--halo-ink);
+	font: inherit;
+	font-size: 14px;
+	outline: none;
+}
+
+.halo-cmdk-list {
+	overflow-y: auto;
+	padding: 6px;
+}
+
+.halo-cmdk-item {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 8px 10px;
+	border-radius: 8px;
+	text-decoration: none;
+	color: var(--halo-ink);
+	font-size: 13px;
+}
+
+.halo-cmdk-item.is-active,
+.halo-cmdk-item:hover {
+	background: var(--halo-accent-soft);
+	color: var(--primary-color-low);
+}
+
+.halo-cmdk-title {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.halo-cmdk-group {
+	font-size: 10.5px;
+	color: var(--halo-ink-4);
+	letter-spacing: 0.04em;
+}
+
+.halo-cmdk-empty {
+	padding: 18px 12px;
+	text-align: center;
+	color: var(--halo-ink-4);
+	font-size: 12.5px;
+}
+
+/* LuCI indicators (pending changes) */
+.halo-indicators {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.halo-indicators:empty {
+	display: none;
+}
+
+.halo-indicators .label {
+	height: 24px;
+	display: inline-flex;
+	align-items: center;
+}
+
+/* LuCI/bootstrap styles header [data-indicator] as a filled uppercase badge.
+ * Re-skin every indicator (inbox, pending changes, refresh) as a quiet chip. */
+.halo-indicators > [data-indicator] {
+	display: inline-flex;
+	align-items: center;
+	height: 26px;
+	padding: 0 9px;
+	border: 1px solid var(--halo-hairline);
+	border-radius: 999px;
+	background: var(--halo-surface);
+	color: var(--halo-ink-2);
+	font-size: 11.5px;
+	font-weight: 600;
+	letter-spacing: 0;
+	text-transform: none;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.halo-indicators > [data-indicator]:hover {
+	border-color: var(--halo-hairline-strong);
+	color: var(--halo-ink);
+}
+
+.halo-indicators > [data-indicator][data-style="active"] {
+	border-color: color-mix(in srgb, var(--halo-rx) 42%, transparent);
+	background: color-mix(in srgb, var(--halo-rx) 9%, var(--halo-surface));
+	color: var(--primary-color-high);
+}
+
+/* LuCI injects its own cbi-buttons here (pending changes, inbox, refresh).
+ * Keep them functional but quiet: small outline chips instead of filled CTAs. */
+.halo-indicators > .cbi-button,
+.halo-indicators > a.cbi-button,
+.halo-indicators > span.cbi-button,
+.halo-indicators > button {
+	height: 26px;
+	min-height: 0;
+	padding: 0 9px;
+	border: 1px solid var(--halo-hairline);
+	border-radius: 999px;
+	background: var(--halo-surface);
+	color: var(--halo-ink-2);
+	font-size: 11.5px;
+	font-weight: 600;
+	line-height: 24px;
+	box-shadow: none;
+	white-space: nowrap;
+}
+
+.halo-indicators > .cbi-button:hover,
+.halo-indicators > button:hover {
+	border-color: var(--halo-hairline-strong);
+	color: var(--halo-ink);
+}
+
+.halo-indicators > .cbi-button-apply,
+.halo-indicators > .cbi-button-action {
+	border-color: color-mix(in srgb, var(--halo-rx) 45%, transparent);
+	color: var(--primary-color-high);
+}
+
+/* spin on manual refresh */
+.halo-top-btn.is-spin svg {
+	animation: halo-spin 700ms linear infinite;
+}
+
+@keyframes halo-spin {
+	to { transform: rotate(360deg); }
+}
+
+/* ============================================================ footer */
+
+.halo-foot {
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 12px clamp(14px, 2vw, 28px) 18px;
+	color: var(--halo-ink-4);
+	font-size: 11px;
+	border-top: 1px solid var(--halo-hairline);
+	background: transparent;
+	flex-wrap: wrap;
+}
+
+.halo-foot a {
+	color: var(--halo-ink-3);
+	text-decoration: none;
+}
+
+.halo-foot a:hover {
+	color: var(--primary-color-high);
+}
+
+.halo-foot #modemenu {
+	display: flex;
+	gap: 6px;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	margin-left: auto;
+}
+
+.halo-foot #modemenu .active a {
+	color: var(--primary-color-high);
+	font-weight: 600;
+}
+
+/* ============================================================ mode/theme controls */
+
+.halo-seg {
+	display: inline-flex;
+	padding: 2px;
+	border: 1px solid var(--halo-hairline);
+	border-radius: var(--halo-r-pill);
+	background: var(--halo-surface-sunk);
+}
+
+.halo-seg button {
+	border: 0;
+	background: transparent;
+	border-radius: var(--halo-r-pill);
+	padding: 3px 9px;
+	font: inherit;
+	font-size: 11px;
+	color: var(--halo-ink-3);
+	cursor: pointer;
+}
+
+.halo-seg button.is-on {
+	background: var(--halo-surface);
+	color: var(--halo-ink);
+	box-shadow: var(--halo-shadow-1);
+}
+
+/* ============================================================ responsive */
+
+@media (min-width: 781px) and (max-width: 1180px) {
+	body:not(.halo-rail-open) .halo-shell {
+		grid-template-columns: var(--halo-rail-w-collapsed) minmax(0, 1fr);
+	}
+}
+
+@media (max-width: 900px) {
+	.halo-search {
+		display: none;
+	}
+	.halo-host-model {
+		display: none;
+	}
+}
+
+@media (max-width: 780px) {
+	:root {
+		--halo-pad: 12px;
+		--halo-gap: 10px;
+	}
+	html body .halo-shell,
+	html body.halo-rail-min .halo-shell {
+		grid-template-columns: minmax(0, 1fr) !important;
+	}
+	#halo-rail {
+		position: fixed;
+		inset: 0 auto 0 0;
+		width: min(84vw, 292px);
+		transform: translateX(-102%);
+		transition: transform 260ms var(--halo-ease-out);
+		box-shadow: var(--halo-shadow-2);
+		z-index: 90;
+	}
+	body.halo-rail-open #halo-rail {
+		transform: none;
+	}
+	body.halo-rail-open .halo-nav-text,
+	body.halo-rail-open .halo-nav-count,
+	body.halo-rail-open .halo-brand-text {
+		display: block;
+	}
+	body.halo-rail-open .halo-nav-item {
+		justify-content: flex-start;
+		padding: 0 9px;
+	}
+	body.halo-rail-min .halo-nav-text,
+	body.halo-rail-min .halo-brand-text {
+		display: none;
+	}
+	.halo-rail-scrim {
+		position: fixed;
+		inset: 0;
+		z-index: 88;
+		background: rgba(10, 11, 26, 0.44);
+		opacity: 0;
+		pointer-events: none;
+		transition: opacity 200ms var(--halo-ease);
+	}
+	body.halo-rail-open .halo-rail-scrim {
+		opacity: 1;
+		pointer-events: auto;
+	}
+	.halo-top {
+		padding: 0 10px;
+		gap: 8px;
+	}
+	#maincontent {
+		padding-bottom: 28px;
+	}
+	#view .cbi-value {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 6px;
+	}
+	#view .cbi-value-title {
+		padding-top: 0;
+	}
+	#view .table {
+		font-size: 12px;
+	}
+	.halo-foot {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 6px;
+	}
+	.halo-foot #modemenu {
+		margin-left: 0;
+	}
+}
+
+@media (min-width: 781px) {
+	.halo-rail-scrim {
+		display: none;
+	}
+	#halo-rail-toggle {
+		display: grid;
+	}
+}
+
+@media (max-width: 780px) {
+	#halo-rail-toggle {
+		display: grid;
+	}
+}
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+	* {
+		animation-duration: 0.01ms !important;
+		transition-duration: 0.01ms !important;
+	}
+}
+
+/* print */
+@media print {
+	#halo-rail,
+	.halo-top,
+	.halo-foot {
+		display: none;
+	}
+	.halo-shell {
+		display: block;
+	}
+}

@@ -1,0 +1,22 @@
+# 构建产物
+*.ipk
+*.apk
+bin/
+build_dir/
+staging_dir/
+tmp/
+out/
+sdk/
+
+# 编辑器 / 系统
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/
+
+# 部署脚本的运行痕迹
+deploy/prof*/
+*.pyc
+__pycache__/

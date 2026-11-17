@@ -1,0 +1,20 @@
+# 这些文件在 Linux 侧会被直接执行或按字节解释，CRLF 会导致 uhttpd 500、
+# uci-defaults 报 "not found"、以及模板里多出 ^M。务必锁成 LF。
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.ut    text eol=lf
+*.js    text eol=lf
+*.css   text eol=lf
+*.json  text eol=lf
+*.md    text eol=lf
+Makefile text eol=lf
+*.patch text eol=lf
+
+# 必须保留可执行位（否则 uci-defaults 不会执行，主题不会注册）
+root/etc/uci-defaults/* text eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.svg text eol=lf
