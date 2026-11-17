@@ -22,13 +22,16 @@ LUCI_TITLE:=Halo - a dashboard-style LuCI theme
 LUCI_DESCRIPTION:=Overview page as a real dashboard: live throughput charts, network topology and client/talker lists. No build step, no extra dependencies beyond luci-base.
 LUCI_DEPENDS:=+luci-base
 LUCI_PKGARCH:=all
+# 注意是 LUCI_ 前缀：luci.mk 里写的是 MAINTAINER:=$(LUCI_MAINTAINER)、URL:=$(LUCI_URL)，
+# 用 PKG_MAINTAINER / PKG_URL 会被静默忽略，control 里仍然显示 luci.mk 的默认值。
+LUCI_MAINTAINER:=qqxu223
+LUCI_URL:=https://github.com/qqxu223/luci-theme-halo
 
 PKG_VERSION:=1.0.0
 PKG_RELEASE:=1
 
 PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
-PKG_MAINTAINER:=Jian
 
 # 资源是手写并已调优的：csstidy / terser 会改写 color-mix()、:is() 和 ucode-js 的
 # 特殊写法，反而弄坏样式；关掉压缩顺带去掉对 luasrcdiet 的 host 依赖。
