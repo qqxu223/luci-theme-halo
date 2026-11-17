@@ -80,7 +80,12 @@ jobs:
         working-directory: ${{ runner.temp }}/sdk
         run: |
           set -euo pipefail
+          # 先把自己写进 .config 再 defconfig：这样 defconfig 会顺着
+          # luci-theme-halo → luci-base → lucihttp → liblua 把整条依赖树选中。
+          # 不做这步，直接 defconfig 编出来的 staging 里没有 lua.h，lucihttp 编译必挂。
+          echo "CONFIG_PACKAGE_luci-theme-halo=y" >> .config
           make defconfig
+          grep -E 'CONFIG_PACKAGE_luci-(base|theme-halo)|CONFIG_PACKAGE_liblua' .config || true
           make package/luci-theme-halo/compile V=s -j"$(nproc)"
 
       - name: 收集产物
