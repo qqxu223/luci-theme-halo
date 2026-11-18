@@ -47,6 +47,8 @@ htdocs/luci-static/resources/
 ucode/template/themes/halo/
   header.ut  footer.ut  sysauth.ut
 root/etc/uci-defaults/40_luci-theme-halo
+root/usr/share/rpcd/ucode/luci.halo     rpcd 插件：conntrack → 每台主机的字节数
+root/usr/share/rpcd/acl.d/luci-theme-halo.json  给它挂 ACL（登录用户可读）
 preview/         离线预览（fixtures）与设计期截图
 ```
 
@@ -141,8 +143,9 @@ uhttpd 是**单进程 epoll**：一串慢 ubus 调用能把整条 accept 队列�
 | 3 | **在途请求上限**：被放弃的调用未回落时停止发新请求 | `INFLIGHT_CAP` |
 | 4 | **失败退避**：5→10→20→40→60 秒，而不是原速重试 | `BACKOFF` / `nextDelay()` |
 | 5 | **心跳只跳过、不停止**：隐藏标签页零网络请求，但计时器不拆 | `startHeartbeat()` / `beat()` |
-| 6 | **双时钟**：廉价计数器 5 秒，重表（租约/主机）30 秒 | `STEP` / `SLOW` |
-| 7 | **禁止轮询 `luci/getConntrackList`**（见下） | 全文无此调用 |
+| 6 | **三时钟**：廉价计数器 5 秒，客户端流量 10 秒，重表（租约/主机）30 秒 | `STEP` / `TALK` / `SLOW` |
+| 7 | **禁止在浏览器里轮询 `luci/getConntrackList`**（见下） | 全文无此调用 |
+| 8 | **单主机流量交给 `luci.halo/talkers`**：服务端聚合，回几百字节 | `sampleTalk()` |
 
 ### 为什么不能调 `getConntrackList`
 
@@ -151,8 +154,29 @@ uhttpd 是**单进程 epoll**：一串慢 ubus 调用能把整条 accept 队列�
 ubus `session` 对象里，于是**所有浏览器立刻被踢回登录页**。procd 会重启 rpcd，但攒够崩溃次数就进入
 crash loop 停止重启，表现就是「换台手机登录一直弹重新登录」。
 
-客户端流量排行因此改为不做采样，卡片直接说明原因。要恢复类似功能，正确做法是装 `nlbwmon`
-（独立的 per-host 统计，不遍历 conntrack），而不是把这个 RPC 加回来。
+客户端流量排行因此改由主题自带的 rpcd 插件 `luci.halo` 提供
+（`root/usr/share/rpcd/ucode/luci.halo`）：它在**服务端**把 `nf_conntrack` 聚合成
+「每台内网主机的累计字节数」，只回几百字节；浏览器只负责把两次采样的差值除以间隔得到速率。
+
+成本模型（这台 aarch64 路由器实测，表 4 MB / 约 13k 条）：
+
+| 做法 | 一次采样 |
+|---|---|
+| 64 KB 缓冲逐行读 | 49 次全表遍历、8.4 秒 |
+| **2 MB 缓冲、一次读** | **1 次遍历、0.2–0.8 秒** |
+| 硬上限 `MAX_PASSES = 3` | 最坏 3 次遍历后放弃，`truncated` 由前端整帧丢弃 |
+
+关键点是 `/proc/net/nf_conntrack` **不支持 lseek**：每次 `read()` 都从表头重新遍历，所以必须用
+大缓冲一次读完，逐行读会退化成 O(表大小²)。这也是 `getConntrackList` 慢到 30 秒的真正原因 ——
+不是它对数据做了什么，而是它把整表序列化成几 MB 的 blobmsg 回包。
+
+采样间隔不是固定的：每次采样会量自己的耗时，下一轮按 `max(12 秒, 耗时 × 6)` 退让
+（上限 60 秒），所以连接表越大、机器越慢，采样越稀，rpcd 被占用的比例始终压在 15% 左右。
+
+安装/升级时 `uci-defaults` 会重启一次 rpcd 让插件生效（rpcd 只在启动时扫描插件目录）。
+重启前先单独跑一遍插件确认语法，跑不通就直接删掉再重启：一个坏插件不能有能力把 Web 面板拖下水。
+权限走 `luci-theme-halo` 这个 ACL 组，默认的 root 登录是 `list read '*'`，天然拥有；
+受限用户没有这个组，卡片会显示「客户端流量采样不可用」，不会报错也不会空转重试。
 
 另外 `safe()` 接收的是**函数**而不是已调用的 promise：`rpc.declare` 的返回值在构造阶段就可能抛
 （ACL 拒绝、expect 不合法、模块未就绪）。一旦它在 `Promise.all([...])` 的参数里同步抛出，

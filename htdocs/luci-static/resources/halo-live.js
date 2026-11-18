@@ -26,16 +26,27 @@
  *      instead of retrying at full rate.
  *   5. VISIBILITY PAUSE — a hidden tab does zero network work. Closing the tab
  *      stops it entirely; there is no unattended polling.
- *   6. TWO CLOCKS — cheap counters every 5 s, expensive tables (DHCP leases,
- *      host hints) every 30 s on a separate timer.
+ *   6. THREE CLOCKS — counters every 5 s, per-host traffic every 10 s, DHCP
+ *      leases and host hints every 30 s, each on its own timer.
  *
- * NO AUTOMATIC CONNTRACK POLLING. `luci/getConntrackList` walks the whole
- * nf_conntrack table and serialises it. On a busy router (this one had 12k
- * entries from a transparent proxy) a single call took >30 s and rpcd exited,
- * which dropped *every* LuCI session — every browser got kicked back to the
- * login page, over and over. The RPC takes no filter parameters, so there is no
- * cheap variant. It is now only called when the user presses “采样” in the
- * talkers card, behind an 8 s guard, once per page.
+ * 7. NO BROWSER-SIDE CONNTRACK DUMP — see the talker note below.
+ *
+ * PER-HOST TRAFFIC DOES NOT COME FROM luci/getConntrackList. That RPC walks the
+ * whole nf_conntrack table and serialises every entry; on a busy router (this
+ * one runs 3-13k entries) one call took >30 s and took rpcd down with it, which
+ * dropped *every* LuCI session — every browser got kicked back to the login
+ * page, over and over. The RPC has no filter parameters, so there is no cheap
+ * variant of it.
+ *
+ * Instead the theme ships a small rpcd plugin (`luci.halo`, see
+ * root/usr/share/rpcd/ucode/luci.halo). It reads the table once with a single
+ * large buffered read (at most three passes, hard caps) and returns only the
+ * per-host byte counters — a few hundred bytes over the bus instead of
+ * megabytes. The browser turns successive cumulative counters into rates.
+ * Sampled every 12 s at best, never on the 5 s chart clock: one sample costs a
+ * full table walk — measured 0.07 s on a 1.6k entry table, 3.4 s on a 16k one —
+ * and a ranking does not need to be fresher than that. The interval stretches
+ * with the measured cost so the sampler never owns more than ~15% of rpcd.
  * ---------------------------------------------------------------------------
  */
 
@@ -48,8 +59,10 @@ var callSysInfo = rpc.declare({ object: 'system', method: 'info', expect: {} });
 var callBoard = rpc.declare({ object: 'system', method: 'board', expect: {} });
 var callCPU = rpc.declare({ object: 'luci', method: 'getCPUUsage', expect: {} });
 var callTemp = rpc.declare({ object: 'luci', method: 'getTempInfo', expect: {} });
+var callTalkers = rpc.declare({ object: 'luci.halo', method: 'talkers', params: ['lan'], expect: {} });
 
 var STEP = 5;                 /* fast tick, seconds */
+var TALK = 12;                /* per-host traffic sample, seconds */
 var SLOW = 30;                /* leases / host hints, seconds */
 var POINTS = 60;              /* 60 x 5 s = 5 min of history */
 var RPC_TIMEOUT = 6000;
@@ -60,9 +73,14 @@ var S = {
 	history: { rx: [], tx: [], t: [] },
 	prev: null,
 	prevT: 0,
-	conn: null,
-	connT: 0,
-	connRates: {},
+
+	/* per-host traffic: previous cumulative counters, current rates */
+	talkPrev: null,
+	talkRates: {},
+	talkMs: 0,
+	talkFails: 0,
+	talkOff: false,
+
 	clients: [],
 	root: null,
 	board: {},
@@ -74,8 +92,10 @@ var S = {
 	/* scheduler state */
 	heartbeat: null,
 	nextAt: 0,
+	talkNextAt: 0,
 	slowNextAt: 0,
 	busy: false,
+	talkBusy: false,
 	slowBusy: false,
 	inflight: 0,
 	fails: 0,
@@ -206,11 +226,110 @@ function sampleRates(devices, wanDev) {
 	return rate;
 }
 
-/* NOTE — client throughput ranking used to be derived from luci/getConntrackList.
- * That RPC serialises the whole nf_conntrack table (12k entries on this router,
- * >30 s per call) and made rpcd exit, which drops every LuCI session at once.
- * It is deliberately gone: the talkers card now explains why it cannot show a
- * ranking instead of risking the web UI. See the SAFETY CONTRACT above. */
+/* ------------------------------------------------------------ talkers */
+
+/*
+ * luci.halo/talkers returns *cumulative* per-host byte counters; a rate is the
+ * difference between two samples over the elapsed time. Two rules keep the
+ * numbers honest:
+ *
+ *  - a host missing from the previous sample is skipped, never measured from
+ *    zero — a connection opened between samples would otherwise appear to have
+ *    moved its whole lifetime in one tick;
+ *  - counters drop when a connection is closed (the entry leaves nf_conntrack,
+ *    so the next total is simply smaller), so negative deltas clamp to zero.
+ *    That under-reports during heavy churn and never invents traffic.
+ *
+ * A truncated reply (the plugin hit its read cap) is dropped outright: partial
+ * counters would read as a negative delta on every host.
+ */
+
+function rateOf(ip) {
+	var r = S.talkRates[ip];
+	return r ? (r.up || 0) + (r.down || 0) : 0;
+}
+
+function talkerList() {
+	var out = [];
+	Object.keys(S.talkRates).forEach(function (ip) {
+		out.push({ ip: ip, rate: rateOf(ip) });
+	});
+	out.sort(function (a, b) { return b.rate - a.rate; });
+	return out.slice(0, 4);
+}
+
+function applyTalk(r) {
+	if (!r || !r.hosts || r.truncated) return;
+
+	/* the sample timestamp is the router's, not the browser's: the plugin serves
+	 * a cached sample for 8 s, so a reply can be older than "now" and the two
+	 * clocks need not agree. An unchanged timestamp means no new sample. */
+	var at = r.t ? r.t * 1000 : Date.now();
+	var prev = S.talkPrev;
+	if (prev && at <= prev.at) return;
+
+	var dt = prev ? Math.max(0.5, (at - prev.at) / 1000) : 0;
+	var byIp = {};
+	var rates = {};
+
+	r.hosts.forEach(function (h) {
+		if (h && h.ip) byIp[h.ip] = { up: h.up || 0, down: h.down || 0 };
+	});
+
+	if (prev && dt) {
+		Object.keys(byIp).forEach(function (ip) {
+			var p = prev.byIp[ip];
+			var c = byIp[ip];
+			if (!p) return;
+			var dUp = c.up - p.up;
+			var dDown = c.down - p.down;
+			if (dUp <= 0 && dDown <= 0) return;
+			rates[ip] = { up: Math.max(0, dUp) / dt, down: Math.max(0, dDown) / dt };
+		});
+	}
+
+	S.talkRates = rates;
+	S.talkPrev = { at: at, byIp: byIp };
+}
+
+function sampleTalk() {
+	if (S.talkOff) return;
+
+	S.talkBusy = true;
+	var startedAt = Date.now();
+
+	guard(function () { return callTalkers(S.lanBase + '.'); }, 12000)
+		.then(function (r) {
+			applyTalk(r);
+			S.talkFails = 0;
+			S.talkMs = Date.now() - startedAt;
+		})
+		.catch(function (err) {
+			var msg = (err && err.message) || '';
+
+			/* A slow sample is not a broken sample: the table walk grows with the
+			 * connection table, so on a busy box one call really can take
+			 * seconds. Only a real refusal (missing object, denied ACL) is
+			 * permanent — three of those and the card stops asking. */
+			if (/timeout/i.test(msg)) {
+				S.talkMs = Date.now() - startedAt;
+			}
+			else {
+				S.talkFails++;
+				if (S.talkFails >= 3) S.talkOff = true;
+				console.warn('[halo] talkers:', msg || err);
+			}
+		})
+		.then(function () {
+			S.talkBusy = false;
+
+			/* Keep the sampler off rpcd's back: the next sample waits at least
+			 * TALK seconds, and longer when the last walk was expensive, so the
+			 * sampler never owns more than ~15% of a single-threaded daemon. */
+			var back = Math.min(60000, Math.round((S.talkMs || 0) * 6));
+			paceTalk(Math.max(TALK * 1000, back));
+		});
+}
 
 /* ------------------------------------------------------------ model parts */
 
@@ -227,7 +346,7 @@ function buildClients() {
 			ip: l.ipaddr,
 			mac: l.macaddr || '',
 			band: '有线',
-			rate: S.connRates[l.ipaddr] || 0,
+			rate: rateOf(l.ipaddr),
 			lease: l.expires != null ? l.expires : null,
 			online: true
 		});
@@ -243,9 +362,9 @@ function buildClients() {
 				ip: ip,
 				mac: mac,
 				band: '有线',
-				rate: S.connRates[ip] || 0,
+				rate: rateOf(ip),
 				lease: null,
-				online: (S.connRates[ip] || 0) > 0
+				online: rateOf(ip) > 0
 			});
 		});
 	});
@@ -312,6 +431,17 @@ function buildModel(dump, devices, sysinfo, cpu, temp) {
 
 	S.clients = buildClients();
 
+	/* talkers may include hosts without a DHCP lease / host hints entry, so
+	 * names are resolved through the client list where possible */
+	var names = {};
+	S.clients.forEach(function (c) {
+		if (c.name) names[c.ip] = c.name;
+	});
+
+	var talkers = talkerList().map(function (t) {
+		return { name: names[t.ip] || '', ip: t.ip, rate: t.rate };
+	});
+
 	return {
 		step: STEP,
 		seriesLen: POINTS,
@@ -350,10 +480,10 @@ function buildModel(dump, devices, sysinfo, cpu, temp) {
 			leases: ((S.leases && S.leases.dhcp_leases) || []).length
 		},
 		clients: S.clients,
-		talkers: S.clients
-			.filter(function (c) { return (c.rate || 0) > 0; })
-			.slice(0, 4)
-			.map(function (c) { return { name: c.name || c.ip, ip: c.ip, rate: c.rate }; }),
+		talkers: talkers,
+		/* pending: sampler healthy but no rate yet (first sample, or the whole
+		 * LAN is idle); off: luci.halo is missing or its ACL denies us */
+		talkerState: S.talkOff ? 'off' : !S.talkPrev ? 'pending' : talkers.length ? 'ok' : 'idle',
 		ifaces: buildIfaces(dump, devices),
 		wifi: [],
 		tunnels: (wg && wg.up) ? [{ name: 'wg', ip: firstIp(wg).split('/')[0] || '', up: true }] : []
@@ -415,6 +545,10 @@ function paceSlow(ms) {
 	S.slowNextAt = Date.now() + (ms == null ? SLOW * 1000 : ms);
 }
 
+function paceTalk(ms) {
+	S.talkNextAt = Date.now() + (ms == null ? TALK * 1000 : ms);
+}
+
 function beat() {
 	if (document.hidden) return;
 
@@ -427,6 +561,12 @@ function beat() {
 			doTick();
 		}
 	}
+
+	/* Not gated on S.inflight or S.busy: a tick always has five calls in the
+	 * air and can itself take seconds on a busy box, so either test starves the
+	 * sampler for good (both did, in testing). One call per 12 s, single-flight,
+	 * 5 s guard — that is bounded on its own. */
+	if (!S.talkBusy && Date.now() >= S.talkNextAt) sampleTalk();
 
 	if (!S.slowBusy && Date.now() >= S.slowNextAt) {
 		if (S.inflight > INFLIGHT_CAP) paceSlow(15000);
@@ -527,6 +667,7 @@ function onVisibility() {
 	if (hiddenNow) return;
 	pace(150);
 	paceSlow(150);
+	paceTalk(150);
 }
 
 return baseclass.extend({
@@ -539,6 +680,9 @@ return baseclass.extend({
 			window.addEventListener('pagehide', stopHeartbeat);
 			pace(0);
 			paceSlow(0);
+			/* one of the first things to fire, but not in the same burst as the
+			 * initial dashboard calls: the sampler holds rpcd for up to a second */
+			paceTalk(1200);
 			startHeartbeat();
 		};
 

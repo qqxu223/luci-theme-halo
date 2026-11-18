@@ -973,24 +973,39 @@
 
 	/* ------------------------------------------------------------ talkers */
 
+	/* state comes from the collector:
+	 *   ok      — per-host rates are available
+	 *   pending — sampler healthy, first sample still on its way
+	 *   idle    — sampled, but nothing on the LAN is moving bytes
+	 *   off     — luci.halo (the rpcd sampler) is missing or not permitted */
+	var TALK_TEXT = {
+		pending: ["采样中", "正在采样客户端流量…"],
+		idle: ["实时", "当前没有客户端流量"],
+		off: ["未启用", "客户端流量采样不可用"]
+	};
+
 	function renderTalkers(m) {
+		var state = m.talkerState || (m.talkers.length ? "ok" : "idle");
+		var txt = TALK_TEXT[state] || ["实时", ""];
 		var c = card(
 			"hd-c-talk",
 			"talk",
 			"流量大户",
-			"实时",
+			txt[0],
 			"/cgi-bin/luci/admin/status/realtime/bandwidth",
 			"详情 →"
 		);
 		var wrap = el("div", "hd-talk");
 		if (!m.talkers.length) {
-			/* Ranking needs a full conntrack dump. On a router with a large
-			 * conntrack table that RPC is slow enough to take rpcd down — and
-			 * with it every LuCI session. Say so instead of polling it. */
 			var idle = el("div", "hd-empty");
 			idle.innerHTML =
 				ICONS.talk +
-				"<span>未启用客户端流量采样<br><a href=\"/cgi-bin/luci/admin/status/realtime/bandwidth\">查看实时流量</a></span>";
+				"<span>" +
+				txt[1] +
+				(state === "off"
+					? "<br><a href=\"/cgi-bin/luci/admin/status/realtime/bandwidth\">查看实时流量</a>"
+					: "") +
+				"</span>";
 			wrap.appendChild(idle);
 
 			var lull = el("div", "hd-talk-foot");

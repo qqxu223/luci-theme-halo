@@ -1,0 +1,10 @@
+{
+	"luci-theme-halo": {
+		"description": "Grant access to the Halo dashboard traffic sampler",
+		"read": {
+			"ubus": {
+				"luci.halo": [ "talkers" ]
+			}
+		}
+	}
+}

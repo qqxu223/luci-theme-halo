@@ -1,5 +1,33 @@
 #!/bin/sh
-# Register luci-theme-halo with LuCI (does not switch the active theme by itself).
+# Register luci-theme-halo with LuCI (does not switch the active theme by itself)
+# and load the dashboard's per-host traffic sampler into rpcd.
+
 [ -n "$(uci -q get luci.themes.Halo)" ] || uci set luci.themes.Halo='/luci-static/halo'
 uci commit luci
+
+# rpcd only scans /usr/share/rpcd/ucode at startup, so the freshly installed
+# plugin needs one restart (a real restart — a reload keeps the old process and
+# its already-compiled object list).
+#
+# Check first: evaluate the plugin standalone. A file that cannot even be
+# evaluated is removed before rpcd gets a chance to load it, and rpcd is only
+# restarted when that check passed. A broken sampler must never be able to take
+# the web UI down with it.
+PLUGIN=/usr/share/rpcd/ucode/luci.halo
+
+if [ -f "$PLUGIN" ]; then
+	if /usr/bin/ucode "$PLUGIN" >/dev/null 2>&1; then
+		/etc/init.d/rpcd restart >/dev/null 2>&1
+		sleep 1
+		if ! pidof rpcd >/dev/null 2>&1; then
+			logger -t luci-theme-halo "rpcd did not come back; removing the traffic sampler"
+			rm -f "$PLUGIN"
+			/etc/init.d/rpcd restart >/dev/null 2>&1
+		fi
+	else
+		logger -t luci-theme-halo "traffic sampler failed to evaluate; removing it"
+		rm -f "$PLUGIN"
+	fi
+fi
+
 exit 0
