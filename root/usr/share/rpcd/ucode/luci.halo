@@ -2,7 +2,7 @@
 'use strict';
 
 /*
- * luci.halo — per-host traffic counters for the Halo dashboard.
+ * luci.halo — per-host traffic rates for the Halo dashboard.
  *
  * WHY THIS EXISTS
  * ---------------
@@ -12,25 +12,36 @@
  * single threaded and holds every LuCI session — falls over. That is how the
  * dashboard used to log everybody out.
  *
- * The browser does not need the table. It needs "bytes per LAN host", so the
- * aggregation happens here and only the totals cross the bus: a few hundred
- * bytes, no matter how big the table is.
+ * The browser does not need the table. It needs "how much did each LAN host
+ * move since the last look", so the diffing happens here and only the result
+ * crosses the bus: a few hundred bytes, whatever the table size.
  *
- * COST MODEL (measured on a 4 MB, ~13k entry table, aarch64 router)
- * ---------------------------------------------------------------
- * Each read() of /proc/net/nf_conntrack walks the whole table — the file does
- * not support lseek, so a 64 kB buffer means 60 walks and eight seconds.
- * Hence: ONE big buffer, and a hard cap on the number of reads.
+ * WHY PER-CONNECTION DIFFS AND NOT PER-HOST TOTALS
+ * -----------------------------------------------
+ * Summing `bytes=` per host looks like a counter and is not one: the moment a
+ * connection closes, its bytes leave the sum. Measured here, the sum dropped
+ * by hundreds of kB/s while the link carried a few kB/s — so rates built from
+ * it read as zero exactly when the box is busy, which is the one time the card
+ * matters.
  *
- *   read(BUF)      4 MiB  → typical 3-4 MiB table in ONE walk (~1 s here)
- *   MAX_PASSES     2      → 8 MiB covered, then we stop and say so
+ * Each connection is therefore keyed by its endpoints and diffed against the
+ * previous sample; only the growth of connections seen in both samples counts.
+ * A closed connection contributes nothing instead of a negative. A connection
+ * opened inside the window contributes its growth from zero, which is real.
+ *
+ * COST MODEL (measured here: aarch64, 4 MB / 13k entry table)
+ * ---------------------------------------------------------
+ * /proc/net/nf_conntrack has no lseek, so *every* read() walks the whole
+ * table: a 64 kB buffer meant 49 walks and 8.4 s. Hence one big buffer and a
+ * hard cap on the number of reads.
+ *
+ *   read(BUF)      4 MiB  → the whole table in ONE walk (~0.9 s per MiB)
+ *   MAX_PASSES     2      → 8 MiB covered, then stop and say `truncated`
  *   MAX_HOSTS      96     → bounded reply size
+ *   TTL            8 s    → several tabs collapse into one walk
  *
- * If the cap is hit, `truncated` is set and the caller must ignore the sample
- * (counters would be partial and every delta would be junk).
- *
- * Counters are CUMULATIVE per connection. The caller keeps the previous sample
- * and divides the difference by elapsed time to get bytes/s.
+ * The caller is expected to sample every 12 s or slower and to ignore any
+ * reply with `truncated: true` (partial counters diff into garbage).
  */
 
 const fs = require('fs');
@@ -39,13 +50,13 @@ const PATH = '/proc/net/nf_conntrack';
 const BUF = 4194304;
 const MAX_PASSES = 2;
 const MAX_HOSTS = 96;
-const TTL = 8;                /* seconds a sample is reused for */
+const TTL = 8;
 
 /* rpcd loads this plugin once, so module state lives as long as the process.
- * Several tabs polling at once would otherwise mean several full table walks
- * per cycle; with a TTL they collapse into one. rpcd is single threaded, so
- * there is nothing to lock. */
-let cache = null;
+ * rpcd is single threaded: no locking needed. */
+let prev = null;        /* key -> [bytes original direction, bytes reply] */
+let prevAt = null;      /* monotonic clock at that sample */
+let cache = null;       /* { at, lan, data } */
 
 /* "1.2.3.4 dst=..." -> "1.2.3.4" */
 function head(s) {
@@ -66,11 +77,19 @@ function digits(s) {
 	return i ? +substr(s, 0, i) : 0;
 }
 
+function mono() {
+	let c = clock(true);
+	/* the divisor must be a float: ucode does integer division on ints, and the
+	 * nanosecond component would be dropped (cost then reads in whole seconds) */
+	return c[0] + c[1] / 1000000000.0;
+}
+
 /*
  * One conntrack line holds two tuples:
- *   ... src=A dst=B ... bytes=N  [STATE]  src=C dst=D ... bytes=M
+ *   ipv4 2 tcp 6 431999 ESTABLISHED src=A dst=B sport=1 dport=2 ... bytes=N
+ *                                       src=C dst=D sport=2 dport=1 ... bytes=M
  * N is what the original direction moved, M the reply direction. Whichever
- * tuple starts inside the LAN is the host we account for.
+ * tuple starts inside the LAN is the host being accounted for.
  */
 function scan(rows, st, lan) {
 	for (let line in rows) {
@@ -93,27 +112,64 @@ function scan(rows, st, lan) {
 		let s2 = head(srcs[2]);
 		let b1 = digits(byts[1]);
 		let b2 = digits(byts[2]);
-		let ip, up, down;
+		let ip, hostIsFirst;
 
 		if (substr(s1, 0, length(lan)) == lan) {
 			ip = s1;
-			up = b1;
-			down = b2;
+			hostIsFirst = true;
 		}
 		else if (substr(s2, 0, length(lan)) == lan) {
 			ip = s2;
-			up = b2;
-			down = b1;
+			hostIsFirst = false;
 		}
 		else
+			continue;
+
+		/* connection identity — built only for lines that touch the LAN, which
+		 * is a small fraction of the table */
+		let toks = split(line, ' ');
+		let proto = (length(toks) > 2) ? toks[2] : 'x';
+		let key = s1 + '>' + s2 + '/' + proto;
+		let gotS = false;
+		let gotD = false;
+
+		for (let t in toks) {
+			if (!gotS && substr(t, 0, 6) == 'sport=') {
+				key += ':' + substr(t, 6);
+				gotS = true;
+			}
+			else if (!gotD && substr(t, 0, 6) == 'dport=') {
+				key += '-' + substr(t, 6);
+				gotD = true;
+			}
+		}
+
+		st.cur[key] = [b1, b2];
+
+		if (prev == null)
+			continue;
+
+		let o = prev[key];
+		if (o == null)
+			continue;
+
+		let d1 = b1 - o[0];
+		let d2 = b2 - o[1];
+		if (d1 <= 0 && d2 <= 0)
 			continue;
 
 		let h = st.hosts[ip];
 		if (h == null)
 			h = st.hosts[ip] = { up: 0, down: 0 };
 
-		h.up += up;
-		h.down += down;
+		if (hostIsFirst) {
+			if (d1 > 0) h.up += d1;
+			if (d2 > 0) h.down += d2;
+		}
+		else {
+			if (d1 > 0) h.down += d1;
+			if (d2 > 0) h.up += d2;
+		}
 	}
 }
 
@@ -125,19 +181,23 @@ return {
 				let lan = (req && req.args && type(req.args.lan) == 'string') ? req.args.lan : '';
 
 				/* NB: this ucode build rejects `throw` at statement level, and
-				 * rpcd treats a null reply as "no data" — which is exactly the
+				 * rpcd treats a null reply as "no data" — exactly the
 				 * degradation the caller wants, so failures return null. */
 				if (!length(lan))
 					return null;
 
-				if (cache != null && cache.lan == lan && time() - cache.at < TTL)
+				let now = mono();
+
+				if (cache != null && cache.lan == lan && now - cache.at < TTL)
 					return cache.data;
+
+				let started = now;
 
 				let fh = fs.open(PATH, 'r');
 				if (!fh)
 					return null;
 
-				let st = { hosts: {}, lines: 0, hits: 0 };
+				let st = { hosts: {}, cur: {}, lines: 0, hits: 0 };
 				let carry = '';
 				let passes = 0;
 				let complete = false;
@@ -159,7 +219,7 @@ return {
 					carry = pop(rows);
 					scan(rows, st, lan);
 
-					/* short read on a non-seekable seq_file means end of table */
+					/* a short read on a non-seekable seq_file is end of table */
 					if (got < BUF) {
 						complete = true;
 						break;
@@ -171,14 +231,27 @@ return {
 				if (length(carry))
 					scan([carry], st, lan);
 
+				let dt = 0;
+				if (prevAt != null)
+					dt = now - prevAt;
+
+				/* A truncated scan is not a usable baseline: some connections
+				 * were never seen, so the next diff would report their whole
+				 * history. Keep the old baseline; the caller skips this reply. */
+				if (complete) {
+					prev = st.cur;
+					prevAt = now;
+				}
+
 				let list = [];
 				let up = 0;
 				let down = 0;
 
 				for (let ip in st.hosts) {
-					push(list, { ip: ip, up: st.hosts[ip].up, down: st.hosts[ip].down });
-					up += st.hosts[ip].up;
-					down += st.hosts[ip].down;
+					let h = st.hosts[ip];
+					up += h.up;
+					down += h.down;
+					push(list, { ip: ip, up: h.up, down: h.down });
 				}
 
 				sort(list, function (a, b) {
@@ -190,6 +263,11 @@ return {
 
 				let data = {
 					t: time(),
+					/* own cost, so the caller can back off on real work instead
+					 * of on rpcd queueing time */
+					ms: 0,
+					/* no Math.* in this ucode build — the raw float is fine */
+					dt: (dt > 0 && dt < 600) ? dt : 0,
 					lan: lan,
 					passes: passes,
 					lines: st.lines,
@@ -199,9 +277,9 @@ return {
 					hosts: list
 				};
 
-				/* a truncated sample is still worth caching: it keeps a caller on
-				 * a huge table from re-walking the table on every request */
-				cache = { at: data.t, lan: lan, data: data };
+				let ended = mono();
+				data.ms = (ended > started) ? (ended - started) * 1000 : 0;
+				cache = { at: now, lan: lan, data: data };
 
 				return data;
 			}

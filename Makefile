@@ -27,7 +27,7 @@ LUCI_PKGARCH:=all
 LUCI_MAINTAINER:=qqxu223
 LUCI_URL:=https://github.com/qqxu223/luci-theme-halo
 
-PKG_VERSION:=1.0.2
+PKG_VERSION:=1.0.3
 PKG_RELEASE:=1
 
 PKG_LICENSE:=Apache-2.0

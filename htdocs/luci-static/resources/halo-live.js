@@ -75,8 +75,9 @@ var S = {
 	prevT: 0,
 
 	/* per-host traffic: previous cumulative counters, current rates */
-	talkPrev: null,
+	talkSampled: false,
 	talkRates: {},
+	talkWindow: 0,
 	talkMs: 0,
 	talkFails: 0,
 	talkOff: false,
@@ -229,19 +230,15 @@ function sampleRates(devices, wanDev) {
 /* ------------------------------------------------------------ talkers */
 
 /*
- * luci.halo/talkers returns *cumulative* per-host byte counters; a rate is the
- * difference between two samples over the elapsed time. Two rules keep the
- * numbers honest:
+ * luci.halo/talkers does the diffing server side: it walks the connection table
+ * once, compares each connection against the previous sample, and returns the
+ * bytes each LAN host moved *during* the window, plus the window length. So the
+ * browser only divides — no clocks, no assumptions about monotonic counters
+ * (per-host totals are not monotonic: a closing connection takes its bytes
+ * with it, which used to make the ranking read zero under load).
  *
- *  - a host missing from the previous sample is skipped, never measured from
- *    zero — a connection opened between samples would otherwise appear to have
- *    moved its whole lifetime in one tick;
- *  - counters drop when a connection is closed (the entry leaves nf_conntrack,
- *    so the next total is simply smaller), so negative deltas clamp to zero.
- *    That under-reports during heavy churn and never invents traffic.
- *
- * A truncated reply (the plugin hit its read cap) is dropped outright: partial
- * counters would read as a negative delta on every host.
+ * A truncated reply (the plugin hit its read cap) is dropped outright: with
+ * part of the table unseen, every connection in the unseen part looks new.
  */
 
 function rateOf(ip) {
@@ -261,35 +258,22 @@ function talkerList() {
 function applyTalk(r) {
 	if (!r || !r.hosts || r.truncated) return;
 
-	/* the sample timestamp is the router's, not the browser's: the plugin serves
-	 * a cached sample for 8 s, so a reply can be older than "now" and the two
-	 * clocks need not agree. An unchanged timestamp means no new sample. */
-	var at = r.t ? r.t * 1000 : Date.now();
-	var prev = S.talkPrev;
-	if (prev && at <= prev.at) return;
+	/* first sample of a session has no baseline, so the plugin sends dt = 0 */
+	if (!(r.dt > 0)) return;
 
-	var dt = prev ? Math.max(0.5, (at - prev.at) / 1000) : 0;
-	var byIp = {};
 	var rates = {};
 
 	r.hosts.forEach(function (h) {
-		if (h && h.ip) byIp[h.ip] = { up: h.up || 0, down: h.down || 0 };
+		if (!h || !h.ip) return;
+		var up = h.up || 0;
+		var down = h.down || 0;
+		if (!up && !down) return;
+		rates[h.ip] = { up: up / r.dt, down: down / r.dt };
 	});
 
-	if (prev && dt) {
-		Object.keys(byIp).forEach(function (ip) {
-			var p = prev.byIp[ip];
-			var c = byIp[ip];
-			if (!p) return;
-			var dUp = c.up - p.up;
-			var dDown = c.down - p.down;
-			if (dUp <= 0 && dDown <= 0) return;
-			rates[ip] = { up: Math.max(0, dUp) / dt, down: Math.max(0, dDown) / dt };
-		});
-	}
-
 	S.talkRates = rates;
-	S.talkPrev = { at: at, byIp: byIp };
+	S.talkWindow = r.dt;
+	S.talkSampled = true;
 }
 
 function sampleTalk() {
@@ -302,7 +286,9 @@ function sampleTalk() {
 		.then(function (r) {
 			applyTalk(r);
 			S.talkFails = 0;
-			S.talkMs = Date.now() - startedAt;
+			/* the plugin reports its own cost; that beats the round trip, which
+			 * also contains rpcd queueing time */
+			S.talkMs = (r && r.ms > 0) ? r.ms : Date.now() - startedAt;
 		})
 		.catch(function (err) {
 			var msg = (err && err.message) || '';
@@ -326,7 +312,7 @@ function sampleTalk() {
 			/* Keep the sampler off rpcd's back: the next sample waits at least
 			 * TALK seconds, and longer when the last walk was expensive, so the
 			 * sampler never owns more than ~15% of a single-threaded daemon. */
-			var back = Math.min(60000, Math.round((S.talkMs || 0) * 6));
+			var back = Math.min(30000, Math.round((S.talkMs || 0) * 6));
 			paceTalk(Math.max(TALK * 1000, back));
 		});
 }
@@ -483,7 +469,8 @@ function buildModel(dump, devices, sysinfo, cpu, temp) {
 		talkers: talkers,
 		/* pending: sampler healthy but no rate yet (first sample, or the whole
 		 * LAN is idle); off: luci.halo is missing or its ACL denies us */
-		talkerState: S.talkOff ? 'off' : !S.talkPrev ? 'pending' : talkers.length ? 'ok' : 'idle',
+		talkerState: S.talkOff ? 'off' : !S.talkSampled ? 'pending' : talkers.length ? 'ok' : 'idle',
+		talkerWindow: S.talkWindow || 0,
 		ifaces: buildIfaces(dump, devices),
 		wifi: [],
 		tunnels: (wg && wg.up) ? [{ name: 'wg', ip: firstIp(wg).split('/')[0] || '', up: true }] : []

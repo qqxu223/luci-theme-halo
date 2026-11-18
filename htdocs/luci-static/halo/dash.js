@@ -987,6 +987,10 @@
 	function renderTalkers(m) {
 		var state = m.talkerState || (m.talkers.length ? "ok" : "idle");
 		var txt = TALK_TEXT[state] || ["实时", ""];
+		/* the sampler states its own window: a coalesced sample can span 25 s on
+		 * a big connection table, and "近 25 秒" is honest where "实时" is not */
+		if (state !== "pending" && state !== "off" && m.talkerWindow >= 3)
+			txt = ["近 " + Math.round(m.talkerWindow) + " 秒", txt[1]];
 		var c = card(
 			"hd-c-talk",
 			"talk",
