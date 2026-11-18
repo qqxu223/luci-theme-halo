@@ -933,6 +933,8 @@
 			"全部 →"
 		);
 		c.body.classList.add("flush");
+		/* 一两台设备撑在 200px 的卡里，正文下面全是白，像没渲染完。少于三行就收口 */
+		if (m.clients.length <= 2) c.root.classList.add("is-short");
 		var list = el("div", "hd-clients");
 		if (!m.clients.length) {
 			var empty = el("div", "hd-empty");
@@ -1039,6 +1041,8 @@
 			foot.appendChild(el("span", "hd-kv-v", fmtRate(sum)));
 			wrap.appendChild(foot);
 		}
+		/* 同上：一个流量大户占满 200px 的卡，剩下的空间没人用 */
+		if (m.talkers.length <= 2) c.root.classList.add("is-short");
 		c.body.appendChild(wrap);
 		return c;
 	}

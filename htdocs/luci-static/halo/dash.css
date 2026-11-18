@@ -35,6 +35,18 @@
 .hd-c-if   { grid-column: span 4; }
 .hd-c-talk { grid-column: span 3; }
 
+/* 客户端和流量大户经常只有一两行，而同一行的接口卡固定 4–5 行。默认 stretch 会把两张
+ * 短卡拉到 200px 高，正文下面空出 100px 的白——看着像内容没加载完。列表短时按内容收口，
+ * 只给两张卡一个共同的下限，免得它们自己一高一矮。is-short 由 dash.js 按行数加。 */
+.hd-card.is-short {
+	align-self: start;
+}
+
+.hd-c-cli.is-short,
+.hd-c-talk.is-short {
+	min-height: 108px;
+}
+
 .hd-card-h {
 	display: flex;
 	align-items: center;

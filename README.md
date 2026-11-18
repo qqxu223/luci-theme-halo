@@ -236,3 +236,4 @@ rm -rf /tmp/luci-modulecache /tmp/luci-indexcache*
 5. 页面名不等于直觉：防火墙是 `nftables`、状态里的路由是 `routesj`。`menu-halo.js` 的 `ICONS` 按真实 name 建 key，并有 `HINTS` 关键字兜底。
 6. 登录页（`blank_page`）需要 `cbi.js`，否则 LuCI 构造器会因为缺 `String.prototype.format` 抛错。
 7. `network.interface.<name>/status` 在本机被 ACL 拒绝（-32002），只能用 `network.interface/dump`；`expect:{}` 才会拿到裸数组。
+8. 概览最后一行是 `客户端(5 栏) + 接口(4 栏) + 流量大户(3 栏)`，同行等高。列表只有 1–2 行时 `dash.js` 给卡片加 `is-short`、`dash.css` 让它 `align-self: start` 收口；不加的话，只有一台设备的卡会被 4–5 行的接口卡拉到 200px 高，正文下面空出 100px，看着像没渲染完。
