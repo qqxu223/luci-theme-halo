@@ -21,6 +21,10 @@ jobs:
   package:
     name: luci-theme-halo (${{ matrix.release }} → ${{ matrix.ext }})
     runs-on: ubuntu-24.04
+    # 实测过：某一侧作业会无声卡住 20 分钟以上（另一次同等作业 3.5 分钟就完了），
+    # 卡住的直接后果是 Release 只挂上一半资产、而且没人知道。给一个硬上界，
+    # 超时就红着失败，比无限 in progress 强。
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
@@ -34,7 +38,8 @@ jobs:
 
       - name: 安装宿主依赖
         run: |
-          sudo apt-get update
+          # 宿主的 apt 镜像偶尔会半死：连接建起来但不再回包，apt 默认没有超时。
+          sudo apt-get -o Acquire::http::Timeout=30 -o Acquire::Retries=3 update
           sudo apt-get install -y build-essential zstd rsync gawk unzip file
 
       # SDK 必须解压到工作区之外：仓库根就是包目录，SDK 落在里面会被 rsync 复制进自己。
@@ -45,12 +50,15 @@ jobs:
           sdk="$RUNNER_TEMP/sdk"
           base="https://downloads.openwrt.org/releases/${{ matrix.release }}/targets/x86/64"
           # 文件名里带 gcc 版本（24.10 是 13.3.0，25.12 是 14.3.0），写死会随小版本失效，现场解析
-          file=$(curl -fsSL "$base/" \
+          file=$(curl -fsSL --max-time 60 "$base/" \
                  | grep -oE 'openwrt-sdk-[0-9A-Za-z._-]*Linux-x86_64\.tar\.zst' \
                  | head -n1)
           echo "SDK = $file"
           test -n "$file"
-          curl -fsSL -o /tmp/sdk.tar.zst "$base/$file"
+          # --max-time 是必须的：默认没有超时，连接一停住这一步就永远不返回，
+          # 整个作业会挂到 35 分钟被 timeout-minutes 掐掉（v1.0.3 就是这么没挂上 ipk 的）
+          curl -fsSL --retry 3 --retry-delay 5 --max-time 900 \
+               -o /tmp/sdk.tar.zst "$base/$file"
           mkdir -p "$sdk"
           tar --zstd -xf /tmp/sdk.tar.zst -C "$sdk" --strip-components=1
           rm -f /tmp/sdk.tar.zst
