@@ -27,7 +27,15 @@
  *   5. VISIBILITY PAUSE — a hidden tab does zero network work. Closing the tab
  *      stops it entirely; there is no unattended polling.
  *   6. TWO CLOCKS — cheap counters every 5 s, expensive tables (DHCP leases,
- *      host hints, conntrack) every 30 s on a separate timer.
+ *      host hints) every 30 s on a separate timer.
+ *
+ * NO AUTOMATIC CONNTRACK POLLING. `luci/getConntrackList` walks the whole
+ * nf_conntrack table and serialises it. On a busy router (this one had 12k
+ * entries from a transparent proxy) a single call took >30 s and rpcd exited,
+ * which dropped *every* LuCI session — every browser got kicked back to the
+ * login page, over and over. The RPC takes no filter parameters, so there is no
+ * cheap variant. It is now only called when the user presses “采样” in the
+ * talkers card, behind an 8 s guard, once per page.
  * ---------------------------------------------------------------------------
  */
 
@@ -36,14 +44,13 @@ var callDump = rpc.declare({ object: 'network.interface', method: 'dump', expect
 var callNetDevices = rpc.declare({ object: 'luci-rpc', method: 'getNetworkDevices', expect: {} });
 var callLeases = rpc.declare({ object: 'luci-rpc', method: 'getDHCPLeases', params: ['family'], expect: {} });
 var callHints = rpc.declare({ object: 'luci-rpc', method: 'getHostHints', expect: {} });
-var callConntrack = rpc.declare({ object: 'luci', method: 'getConntrackList', expect: {} });
 var callSysInfo = rpc.declare({ object: 'system', method: 'info', expect: {} });
 var callBoard = rpc.declare({ object: 'system', method: 'board', expect: {} });
 var callCPU = rpc.declare({ object: 'luci', method: 'getCPUUsage', expect: {} });
 var callTemp = rpc.declare({ object: 'luci', method: 'getTempInfo', expect: {} });
 
 var STEP = 5;                 /* fast tick, seconds */
-var SLOW = 30;                /* leases / hints / conntrack, seconds */
+var SLOW = 30;                /* leases / host hints, seconds */
 var POINTS = 60;              /* 60 x 5 s = 5 min of history */
 var RPC_TIMEOUT = 6000;
 var INFLIGHT_CAP = 3;
@@ -199,32 +206,11 @@ function sampleRates(devices, wanDev) {
 	return rate;
 }
 
-function sampleConntrack(list) {
-	var now = Date.now();
-	var map = {};
-
-	((list && list.result) || []).forEach(function (e) {
-		if (typeof e.src !== 'string' || e.src.indexOf(S.lanBase + '.') !== 0) return;
-		map[e.src] = (map[e.src] || 0) + (parseInt(e.bytes, 10) || 0);
-	});
-
-	var rates = {};
-	if (S.conn) {
-		var dt = Math.max(1, (now - S.connT) / 1000);
-		Object.keys(map).forEach(function (ip) {
-			var prev = S.conn[ip] || 0;
-			rates[ip] = Math.max(0, map[ip] - prev) / dt;
-		});
-		Object.keys(S.conn).forEach(function (ip) {
-			if (!(ip in rates)) rates[ip] = 0;
-		});
-	}
-
-	S.conn = map;
-	S.connT = now;
-	S.connRates = rates;
-	return rates;
-}
+/* NOTE — client throughput ranking used to be derived from luci/getConntrackList.
+ * That RPC serialises the whole nf_conntrack table (12k entries on this router,
+ * >30 s per call) and made rpcd exit, which drops every LuCI session at once.
+ * It is deliberately gone: the talkers card now explains why it cannot show a
+ * ranking instead of risking the web UI. See the SAFETY CONTRACT above. */
 
 /* ------------------------------------------------------------ model parts */
 
@@ -456,7 +442,9 @@ function tick() {
 		safe(callCPU, {}),
 		safe(callTemp, {})
 	]).then(function (r) {
+		S.parts = r;
 		var model = buildModel(r[0] || {}, r[1] || {}, r[2] || {}, r[3] || {}, r[4] || {});
+		S.lastModel = model;
 
 		if (!S.root) S.root = mount();
 		if (!S.root) return;
@@ -502,13 +490,11 @@ function doSlow() {
 
 	Promise.all([
 		safe(function () { return callLeases(4); }, {}),
-		safe(callHints, {}),
-		safe(callConntrack, {})
+		safe(callHints, {})
 	])
 		.then(function (r) {
 			S.leases = r[0] || {};
 			S.hints = r[1] || {};
-			sampleConntrack(r[2] || {});
 		})
 		.catch(function (err) {
 			console.warn('[halo] slow refresh failed:', err && err.message ? err.message : err);
@@ -563,15 +549,13 @@ return baseclass.extend({
 					return Promise.all([
 						safe(callBoard, {}),
 						safe(function () { return callLeases(4); }, {}),
-						safe(callHints, {}),
-						safe(callConntrack, {})
+						safe(callHints, {})
 					]);
 				})
 				.then(function (r) {
 					S.board = r[0] || {};
 					S.leases = r[1] || {};
 					S.hints = r[2] || {};
-					sampleConntrack(r[3] || {});
 					start();
 				})
 				.catch(function (err) {

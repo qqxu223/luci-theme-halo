@@ -132,7 +132,7 @@ opkg install ./luci-theme-halo_1.0.0-1_all.ipk
 ## 稳定性契约（改 `halo-live.js` 必读）
 
 uhttpd 是**单进程 epoll**：一串慢 ubus 调用能把整条 accept 队列堵死，之后连 SIGTERM 都不响应，
-整个 Web 面板失联（本项目真实发生过一次）。所以采集层有六条硬规则，不要绕过：
+整个 Web 面板失联（本项目真实发生过一次）。所以采集层有七条硬规则，不要绕过：
 
 | # | 规则 | 代码位置 |
 |---|---|---|
@@ -141,14 +141,29 @@ uhttpd 是**单进程 epoll**：一串慢 ubus 调用能把整条 accept 队列�
 | 3 | **在途请求上限**：被放弃的调用未回落时停止发新请求 | `INFLIGHT_CAP` |
 | 4 | **失败退避**：5→10→20→40→60 秒，而不是原速重试 | `BACKOFF` / `nextDelay()` |
 | 5 | **心跳只跳过、不停止**：隐藏标签页零网络请求，但计时器不拆 | `startHeartbeat()` / `beat()` |
-| 6 | **双时钟**：廉价计数器 5 秒，重表（租约/主机/conntrack）30 秒 | `STEP` / `SLOW` |
+| 6 | **双时钟**：廉价计数器 5 秒，重表（租约/主机）30 秒 | `STEP` / `SLOW` |
+| 7 | **禁止轮询 `luci/getConntrackList`**（见下） | 全文无此调用 |
+
+### 为什么不能调 `getConntrackList`
+
+它没有过滤参数，一次性把整张 `nf_conntrack` 表序列化出来。实测这台路由器在透明代理跑起来后
+有 **12,337 条**连接，单次调用 **30 秒不返回**，随后 **rpcd 退出（exit 0）** —— 会话全在 rpcd 的
+ubus `session` 对象里，于是**所有浏览器立刻被踢回登录页**。procd 会重启 rpcd，但攒够崩溃次数就进入
+crash loop 停止重启，表现就是「换台手机登录一直弹重新登录」。
+
+客户端流量排行因此改为不做采样，卡片直接说明原因。要恢复类似功能，正确做法是装 `nlbwmon`
+（独立的 per-host 统计，不遍历 conntrack），而不是把这个 RPC 加回来。
 
 另外 `safe()` 接收的是**函数**而不是已调用的 promise：`rpc.declare` 的返回值在构造阶段就可能抛
 （ACL 拒绝、expect 不合法、模块未就绪）。一旦它在 `Promise.all([...])` 的参数里同步抛出，
 `tick()` 就不会返回 promise，释放锁的 `.then` 永远不执行 —— 仪表盘会停在第 1 帧且再无更新。
 
-再加一道兜底：`/usr/sbin/halo-watchdog` 由 cron 每 2 分钟探一次 `127.0.0.1:80`，
-连续 2 次无响应才重启 uhttpd，之后静默 30 分钟。日志在 `/tmp/halo-watchdog.log`。
+再加两道兜底，由 `/usr/sbin/halo-watchdog` 每分钟执行：
+
+- **rpcd 存活 + `session` 对象存在** —— 缺失则抓现场（fd/syscall/连接/procd 状态）后重启 rpcd；
+- **`127.0.0.1:80` 能响应** —— 连续 2 次失败（间隔 15 秒）才重启 uhttpd。
+
+两者都有冷却时间，日志在 `/tmp/halo-watchdog.log`，现场在 `/tmp/halo-freeze.log`。
 
 移除看门狗：
 
@@ -156,6 +171,7 @@ uhttpd 是**单进程 epoll**：一串慢 ubus 调用能把整条 accept 队列�
 rm -f /usr/sbin/halo-watchdog
 sed -i '/halo-watchdog/d' /etc/crontabs/root && /etc/init.d/cron reload
 ```
+
 
 ## 回滚
 

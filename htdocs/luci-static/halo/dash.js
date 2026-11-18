@@ -984,12 +984,13 @@
 		);
 		var wrap = el("div", "hd-talk");
 		if (!m.talkers.length) {
-			/* An empty ranking is normal on a quiet network. Say why, and still
-			 * show the link's own total so the card carries information. */
+			/* Ranking needs a full conntrack dump. On a router with a large
+			 * conntrack table that RPC is slow enough to take rpcd down — and
+			 * with it every LuCI session. Say so instead of polling it. */
 			var idle = el("div", "hd-empty");
 			idle.innerHTML =
 				ICONS.talk +
-				"<span>暂无活跃客户端<br><a href=\"/cgi-bin/luci/admin/status/realtime/bandwidth\">查看实时流量</a></span>";
+				"<span>未启用客户端流量采样<br><a href=\"/cgi-bin/luci/admin/status/realtime/bandwidth\">查看实时流量</a></span>";
 			wrap.appendChild(idle);
 
 			var lull = el("div", "hd-talk-foot");
